@@ -1,18 +1,25 @@
-use iced::widget::{Button, Text}; // Explicitly import Button and Text
-use iced::{executor, Application, Command, Element, Settings, Theme, widget}; // Added widget module for column! macro
+use iced::widget::{Button, Text, TextInput, Checkbox, Scrollable}; // Explicitly import Button and Text
+use iced::{executor, Application, Command, Element, Settings, Theme, widget, Length}; // Added widget module for column! macro
 use rfd::FileDialog;
 use std::path::PathBuf;
 use std::sync::Arc;
+use reqwest;
+use tokio::time::{sleep, Duration};
+use url::Url;
 
 // Define the main application struct
 struct App {
     selected_file_path: Option<String>,
     status_message: String,
     urls_to_process: Vec<String>,
-    processed_markdowns: Vec<String>,
+    processed_markdowns: Vec<(String, String)>, // Stores (original_url, markdown_content_or_error_string)
     is_processing: bool,
     current_processing_url_index: usize,
     aggregated_markdown: Option<String>,
+    is_paused: bool,
+    last_markdown_preview: Option<String>,
+    save_merged: bool,
+    manual_url_input: String,
 }
 
 // Define messages for GUI interactions
@@ -22,15 +29,23 @@ enum Message {
     StartProcessing,
     ProcessUrls(Option<String>),
     UrlsLoaded(Result<Vec<String>, Arc<std::io::Error>>),
-    UrlProcessed(Result<String, Arc<reqwest::Error>>),
+    UrlProcessed(Result<(String, String), Arc<reqwest::Error>>), // Tuple: (url, markdown_content_or_error)
     ProcessingComplete,
     SaveMarkdown,
     FileSaved(Result<PathBuf, Arc<std::io::Error>>), // Changed String to PathBuf for path
+    TogglePauseResume,
+    ManualUrlInputChanged(String),
+    ProcessManualUrl,
+    ToggleSaveMode,
 }
 
 // Inherent methods for App
 impl App {
     fn process_next_url(&mut self) -> Command<Message> {
+        if self.is_paused {
+            self.status_message = String::from("Processing paused. Select 'Resume' to continue processing.");
+            return Command::none();
+        }
         if self.current_processing_url_index < self.urls_to_process.len() {
             let url_to_convert = self.urls_to_process[self.current_processing_url_index].clone();
             // Update status message immediately for the URL being attempted
@@ -41,6 +56,7 @@ impl App {
                 url_to_convert
             );
 
+            let original_url_for_async = url_to_convert.clone();
             let encoded_url = urlencoding::encode(&url_to_convert);
             let request_url = format!(
                 "https://urltomarkdown.herokuapp.com/?url={}&title=true&links=true&clean=true",
@@ -49,15 +65,96 @@ impl App {
 
             Command::perform(
                 async move {
-                    match reqwest::get(&request_url).await {
-                        Ok(response) => response.text().await.map_err(Arc::new),
-                        Err(e) => Err(Arc::new(e)),
+                    const MAX_RETRIES: u32 = 3;
+                    const BASE_RETRY_DELAY_MS: u64 = 1000;
+                    let client = reqwest::Client::new();
+
+                    for attempt in 0..MAX_RETRIES {
+                        match client.get(&request_url).send().await {
+                            Ok(response) => {
+                                if response.status().is_success() {
+                                    match response.text().await {
+                                        Ok(text) => return Ok((original_url_for_async.clone(), text)),
+                                        Err(e) => { // Text extraction error
+                                            if attempt == MAX_RETRIES - 1 {
+                                                return Err(Arc::new(e));
+                                            }
+                                            // else, fall through to sleep and retry
+                                        }
+                                    }
+                                } else { // HTTP error status (e.g., 429, 500)
+                                    let status = response.status();
+                                    let err_for_status = response.error_for_status().unwrap_err();
+                                    // Retry on 429 (Too Many Requests) or 5xx server errors
+                                    if status == reqwest::StatusCode::TOO_MANY_REQUESTS || status.is_server_error() {
+                                        if attempt == MAX_RETRIES - 1 {
+                                            return Err(Arc::new(err_for_status));
+                                        }
+                                        // Fall through to sleep and retry for these specific statuses
+                                    } else {
+                                        // For other client errors (4xx not being TOO_MANY_REQUESTS), fail immediately
+                                        return Err(Arc::new(err_for_status));
+                                    }
+                                }
+                            }
+                            Err(e) => { // Network or other reqwest error
+                                if attempt == MAX_RETRIES - 1 {
+                                    return Err(Arc::new(e));
+                                }
+                                // else, fall through to sleep and retry
+                            }
+                        }
+                        // If not returned, it means it's a retryable failure but not the last attempt
+                        let delay_duration = BASE_RETRY_DELAY_MS * (2u64.pow(attempt));
+                        sleep(Duration::from_millis(delay_duration)).await;
                     }
+                    // Fallback if loop finishes
+                    Err(Arc::new(reqwest::Error::from(std::io::Error::new(std::io::ErrorKind::TimedOut, "All retries failed"))))
                 },
                 Message::UrlProcessed,
             )
         } else {
             Command::perform(async {}, |_| Message::ProcessingComplete)
+        }
+    }
+
+    fn generate_filename_from_url(&self, url_str: &str) -> String {
+        match Url::parse(url_str) {
+            Ok(parsed_url) => {
+                let path_segment = parsed_url.path_segments().and_then(|iter| iter.last().filter(|s| !s.is_empty()));
+                let name_base = match path_segment {
+                    Some(segment) => segment.to_string(),
+                    None => parsed_url.host_str().unwrap_or("default_host").to_string(),
+                };
+
+                let sanitized_name = name_base.chars()
+                    .map(|c| match c {
+                        'a'..='z' | 'A'..='Z' | '0'..='9' | '.' | '-' | '_' => c,
+                        _ => '_', // Replace invalid characters with underscore
+                    })
+                    .collect::<String>();
+
+                if sanitized_name.is_empty() || sanitized_name.chars().all(|c| c == '_') {
+                    "sanitized_empty.md".to_string()
+                } else {
+                    format!("{}.md", sanitized_name)
+                }
+            }
+            Err(_) => {
+                // Attempt to extract something from the string if parsing fails
+                let fallback_name = url_str.split('/').last().unwrap_or("parse_error");
+                let sanitized_fallback = fallback_name.chars()
+                    .map(|c| match c {
+                        'a'..='z' | 'A'..='Z' | '0'..='9' | '.' | '-' | '_' => c,
+                        _ => '_',
+                    })
+                    .collect::<String>();
+                if sanitized_fallback.is_empty() || sanitized_fallback.chars().all(|c| c == '_') {
+                    "parse_error_sanitized.md".to_string()
+                } else {
+                    format!("{}.md", sanitized_fallback)
+                }
+            }
         }
     }
 }
@@ -74,10 +171,14 @@ impl Application for App {
                 selected_file_path: None,
                 status_message: String::from("Welcome! Please select a file or start processing."),
                 urls_to_process: Vec::new(),
-                processed_markdowns: Vec::new(),
+                processed_markdowns: Vec::new(), // Correctly initialized as empty Vec of tuples
                 is_processing: false,
                 current_processing_url_index: 0,
                 aggregated_markdown: None,
+                is_paused: false,
+                last_markdown_preview: None,
+                save_merged: true,
+                manual_url_input: String::new(),
             },
             Command::none(),
         )
@@ -99,8 +200,10 @@ impl Application for App {
                     self.selected_file_path = Some(path_buf.display().to_string());
                     self.status_message = format!("File selected: {}", path_buf.display());
                     self.aggregated_markdown = None;
+                    self.last_markdown_preview = None; // Clear preview
                 } else {
                     self.status_message = String::from("File selection cancelled.");
+                    self.last_markdown_preview = None; // Clear preview
                 }
                 Command::none()
             }
@@ -111,6 +214,7 @@ impl Application for App {
                     self.urls_to_process.clear();
                     self.processed_markdowns.clear();
                     self.aggregated_markdown = None;
+                    self.last_markdown_preview = None; // Clear preview
                     self.status_message = String::from("Processing URLs..."); // General status
 
                     let path_for_async = self.selected_file_path.clone();
@@ -171,20 +275,25 @@ impl Application for App {
                 }
             }
             Message::UrlProcessed(result) => {
-                // current_processing_url_index is the one that was just attempted
-                let failed_url_index = self.current_processing_url_index;
+                // The URL that was attempted is at self.current_processing_url_index
+                let processed_url = self.urls_to_process.get(self.current_processing_url_index)
+                    .cloned()
+                    .unwrap_or_else(|| "Unknown URL (index error)".to_string());
 
                 match result {
-                    Ok(markdown_text) => {
-                        self.processed_markdowns.push(markdown_text);
-                        // Status message is already set by process_next_url or will be for the next one
+                    Ok((original_url, markdown_text)) => { // original_url from Ok variant is reliable
+                        // We should ideally use original_url if it's guaranteed to be the one we expect.
+                        // If there's any doubt, using processed_url (derived from current_processing_url_index) is safer.
+                        // For now, let's assume original_url is correct as passed by process_next_url.
+                        self.last_markdown_preview = Some(markdown_text.clone());
+                        self.processed_markdowns.push((original_url, markdown_text));
                     }
                     Err(e) => {
-                        let error_url = self.urls_to_process.get(failed_url_index)
-                            .map_or_else(|| "unknown URL (index out of bounds)", |url| url.as_str());
-                        let error_details = format!("Error fetching markdown for URL: {}\nDetails: {}\n", error_url, e);
-                        self.processed_markdowns.push(error_details);
-                        // Status message will be updated by the next call to process_next_url or ProcessingComplete
+                        // When an error occurs, the 'original_url' is not in Err variant.
+                        // So we use 'processed_url' which we derived from current_processing_url_index.
+                        let error_message = format!("Error fetching markdown for URL: {}\nDetails: {}\n", processed_url, e);
+                        self.last_markdown_preview = Some(error_message.clone()); // Show error in preview
+                        self.processed_markdowns.push((processed_url, error_message));
                     }
                 }
                 self.current_processing_url_index += 1;
@@ -197,7 +306,13 @@ impl Application for App {
                 );
                 self.is_processing = false;
 
-                self.aggregated_markdown = Some(self.processed_markdowns.join("\n\n---\n\n"));
+                self.aggregated_markdown = Some(
+                    self.processed_markdowns
+                        .iter()
+                        .map(|(_url, content)| content.clone())
+                        .collect::<Vec<String>>()
+                        .join("\n\n---\n\n")
+                );
 
                 self.urls_to_process.clear();
                 // self.processed_markdowns.clear(); // Keep for saving, clear after save or new process
@@ -205,52 +320,187 @@ impl Application for App {
 
                 Command::none()
             }
+            Message::TogglePauseResume => {
+                self.is_paused = !self.is_paused;
+                if self.is_paused {
+                    self.status_message = String::from("Processing paused.");
+                } else {
+                    self.status_message = String::from("Resuming processing...");
+                    if self.is_processing {
+                        // If processing was active, call process_next_url to resume
+                        return self.process_next_url();
+                    }
+                }
+                Command::none()
+            }
+            Message::ManualUrlInputChanged(url) => {
+                self.manual_url_input = url;
+                Command::none()
+            }
+            Message::ProcessManualUrl => {
+                if !self.manual_url_input.trim().is_empty() && !self.is_processing {
+                    self.is_processing = true;
+                    self.is_paused = false; // Ensure processing is not paused
+                    self.processed_markdowns.clear();
+                    self.aggregated_markdown = None;
+                    self.last_markdown_preview = None;
+                    self.urls_to_process = vec![self.manual_url_input.trim().to_string()];
+                    self.current_processing_url_index = 0;
+                    self.status_message = format!("Processing manual URL: {}", self.manual_url_input.trim());
+                    self.process_next_url() // Return the command from process_next_url
+                } else {
+                    if self.is_processing {
+                        self.status_message = String::from("Cannot process manual URL: Processing of a file is already ongoing.");
+                    } else {
+                        self.status_message = String::from("Manual URL is empty. Please enter a URL to process.");
+                    }
+                    Command::none()
+                }
+            }
+            Message::ToggleSaveMode => {
+                self.save_merged = !self.save_merged;
+                if self.save_merged {
+                    self.status_message = String::from("Save mode: Merged into a single file.");
+                } else {
+                    self.status_message = String::from("Save mode: Separate files in a directory.");
+                }
+                Command::none()
+            }
             Message::SaveMarkdown => {
-                if let Some(markdown_content) = &self.aggregated_markdown {
-                    if !markdown_content.is_empty() {
-                        let default_filename = self.selected_file_path
-                            .as_ref()
-                            .map(|p| PathBuf::from(p).file_stem().unwrap_or_default().to_string_lossy().into_owned() + "_markdown.md")
-                            .unwrap_or_else(|| String::from("output.md"));
+                if self.save_merged {
+                    // Logic for saving merged file
+                    if let Some(markdown_content) = &self.aggregated_markdown {
+                        if !markdown_content.is_empty() {
+                            let default_filename = self.selected_file_path
+                                .as_ref()
+                                .map(|p| PathBuf::from(p).file_stem().unwrap_or_default().to_string_lossy().into_owned() + "_markdown.md")
+                                .unwrap_or_else(|| String::from("output.md"));
 
-                        let file_handle = FileDialog::new()
-                            .set_file_name(&default_filename)
-                            .add_filter("Markdown files", &["md", "markdown"])
-                            .save_file();
+                            let file_handle = FileDialog::new()
+                                .set_file_name(&default_filename)
+                                .add_filter("Markdown files", &["md", "markdown"])
+                                .save_file();
 
-                        if let Some(path_buf) = file_handle {
-                            self.status_message = format!("Saving markdown to {}...", path_buf.display());
-                            let content_to_save = markdown_content.clone();
-                            Command::perform(
-                                async move {
-                                    tokio::fs::write(&path_buf, content_to_save)
-                                        .await
-                                        .map(|_| path_buf) // Return PathBuf on success
-                                        .map_err(Arc::new)
-                                },
-                                Message::FileSaved,
-                            )
+                            if let Some(path_buf) = file_handle {
+                                self.status_message = format!("Saving merged markdown to {}...", path_buf.display());
+                                let content_to_save = markdown_content.clone();
+                                Command::perform(
+                                    async move {
+                                        tokio::fs::write(&path_buf, content_to_save)
+                                            .await
+                                            .map(|_| path_buf) // Return PathBuf on success
+                                            .map_err(Arc::new)
+                                    },
+                                    Message::FileSaved,
+                                )
+                            } else {
+                                self.status_message = String::from("Save operation (merged) cancelled by user.");
+                                Command::none()
+                            }
                         } else {
-                            self.status_message = String::from("Save operation cancelled by user.");
+                            self.status_message = String::from("No markdown content generated to save (merged).");
                             Command::none()
                         }
                     } else {
-                        self.status_message = String::from("No markdown content generated to save.");
+                        self.status_message = String::from("No aggregated markdown available for merged save. Process URLs first.");
                         Command::none()
                     }
                 } else {
-                    self.status_message = String::from("No aggregated markdown available. Process URLs first.");
-                    Command::none()
+                    // Logic for saving separate files
+                    if self.processed_markdowns.is_empty() {
+                        self.status_message = String::from("No processed markdowns to save separately.");
+                        return Command::none();
+                    }
+                    self.status_message = String::from("Select a directory to save individual markdown files."); // Message before dialog
+
+                    let picked_folder = FileDialog::new().pick_folder();
+
+                    if let Some(dir_path) = picked_folder {
+                        // Filter out errors first to count accurately
+                        let files_to_save_tuples: Vec<(&String, &String)> = self.processed_markdowns.iter()
+                            .filter(|(_, content)| !content.starts_with("Error fetching markdown for URL:"))
+                            .map(|(url, content)| (url, content))
+                            .collect();
+
+                        if files_to_save_tuples.is_empty() {
+                            self.status_message = String::from("No actual content (after filtering errors/empty) to save separately.");
+                            return Command::none();
+                        }
+
+                        let files_to_save_count = files_to_save_tuples.len();
+                        self.status_message = format!("Attempting to save {} markdown files to directory {}...", files_to_save_count, dir_path.display());
+
+                        // Now map to (PathBuf, String) for saving
+                        let files_to_save_final: Vec<(PathBuf, String)> = files_to_save_tuples.iter()
+                            .map(|(url, content)| {
+                                let filename = self.generate_filename_from_url(url);
+                                (dir_path.join(filename), (*content).clone())
+                            })
+                            .collect();
+
+                        // let processed_markdowns_clone = self.processed_markdowns.clone(); // Not needed anymore
+                        // Need to capture self.generate_filename_from_url correctly or pass it
+                        // For simplicity, making generate_filename_from_url a static-like method or re-evaluating capture.
+                        // The current impl of generate_filename_from_url takes &self. This is fine as it's called before Command::perform.
+                        // However, the async block cannot directly call self.generate_filename_from_url.
+                        // So, filenames must be generated before the async block.
+
+                        let files_to_save: Vec<(PathBuf, String)> = processed_markdowns_clone.iter()
+                            .filter(|(_, content)| !content.starts_with("Error fetching markdown for URL:"))
+                            .map(|(url, content)| {
+                                let filename = self.generate_filename_from_url(url); // Call it here
+                                (dir_path.join(filename), (*content).clone()) // Deref content before cloning
+                            })
+                            .collect();
+
+                        // This check is now done above with files_to_save_tuples
+                        // if files_to_save_final.is_empty() {
+                        //    self.status_message = String::from("No valid markdown content to save separately (all items might be errors).");
+                        //    return Command::none();
+                        // }
+
+                        Command::perform(
+                            async move {
+                                let mut first_error: Option<Arc<std::io::Error>> = None;
+                                let mut saved_count = 0;
+                                for (file_path, content) in files_to_save_final { // Use files_to_save_final
+                                    if let Err(e) = tokio::fs::write(&file_path, &content).await {
+                                        if first_error.is_none() {
+                                            first_error = Some(Arc::new(e));
+                                        }
+                                    } else {
+                                        saved_count += 1;
+                                    }
+                                }
+                                if saved_count > 0 { Ok(dir_path) } // Return dir path on any success
+                                else if let Some(err) = first_error { Err(err) }
+                                else { Err(Arc::new(std::io::Error::new(std::io::ErrorKind::Other, "No files to save after filtering."))) }
+                            },
+                            Message::FileSaved
+                        )
+                    } else {
+                        self.status_message = String::from("Directory selection for separate save cancelled.");
+                        Command::none()
+                    }
                 }
             }
             Message::FileSaved(result) => {
                 match result {
-                    Ok(path_buf) => {
-                        self.status_message = format!("Markdown successfully saved to {}", path_buf.display());
+                    Ok(path_buf) => { // path_buf is either a file (merged) or a directory (separate)
+                        if self.save_merged {
+                            self.status_message = format!("Merged markdown successfully saved to {}", path_buf.display());
+                        } else {
+                            // For separate, path_buf is the directory.
+                            // We don't have the count here, so a generic message.
+                            self.status_message = format!("Separate markdown files saved to directory {}. Please verify contents.", path_buf.display());
+                        }
                     }
                     Err(e) => {
-                        // PathBuf might not be available on error if save_file itself failed before path known
-                        self.status_message = format!("Failed to save markdown: {}", e);
+                        if self.save_merged {
+                            self.status_message = format!("Failed to save merged markdown: {}", e);
+                        } else {
+                            self.status_message = format!("Error during separate save operation: {}", e);
+                        }
                     }
                 }
                 Command::none()
@@ -259,39 +509,90 @@ impl Application for App {
     }
 
     fn view(&self) -> Element<Message> {
-        let file_path_display = if let Some(path) = &self.selected_file_path {
-            path.as_str()
-        } else {
-            "No file selected."
-        };
-
-        let process_button_text = if self.is_processing {
-            "Processing..."
-        } else {
-            "Start Processing"
-        };
-
+        // File operations
         let mut open_button = Button::new(Text::new("Open URL File"));
         if !self.is_processing {
             open_button = open_button.on_press(Message::OpenFile);
         }
 
-        let mut process_button = Button::new(Text::new(process_button_text));
+        let file_path_display = Text::new(
+            self.selected_file_path.as_deref().unwrap_or("No file selected.")
+        );
+
+        let mut start_processing_button = Button::new(Text::new(if self.is_processing { "Processing..." } else { "Start Processing File" }));
         if !self.is_processing && self.selected_file_path.is_some() {
-            process_button = process_button.on_press(Message::StartProcessing);
+            start_processing_button = start_processing_button.on_press(Message::StartProcessing);
         }
 
+        // Manual URL input
+        let mut manual_url_text_input = TextInput::new(
+                "Enter URL manually and press Enter or click button",
+                &self.manual_url_input,
+                Message::ManualUrlInputChanged,
+            )
+            .padding(10);
+        if self.is_processing {
+            manual_url_text_input = manual_url_text_input.on_submit(Message::ProcessManualUrl); // Allow submit if processing for some reason, but button is better
+        } else {
+            manual_url_text_input = manual_url_text_input.on_submit(Message::ProcessManualUrl);
+        }
+
+
+        let mut process_manual_url_button = Button::new(Text::new("Process Manual URL"));
+        if !self.is_processing && !self.manual_url_input.trim().is_empty() {
+            process_manual_url_button = process_manual_url_button.on_press(Message::ProcessManualUrl);
+        }
+
+        // Processing controls
+        let mut pause_resume_button = Button::new(Text::new(if self.is_paused { "Resume" } else { "Pause" }));
+        if self.is_processing { // Only enable if a batch process is active
+            pause_resume_button = pause_resume_button.on_press(Message::TogglePauseResume);
+        }
+
+        // Save options
+        let mut save_mode_checkbox = Checkbox::new("Save merged into single file", self.save_merged, Message::ToggleSaveMode);
+        if self.is_processing {
+             // save_mode_checkbox = save_mode_checkbox; // No easy way to disable checkbox interaction like on_press(None)
+        }
+
+
         let mut save_button = Button::new(Text::new("Save Markdown"));
-        if !self.is_processing && self.aggregated_markdown.is_some() {
+        // Enable if not processing AND ( (merged mode AND aggregated is Some) OR (separate mode AND processed_markdowns is not empty) )
+        let can_save_merged = self.save_merged && self.aggregated_markdown.is_some() && !self.aggregated_markdown.as_deref().unwrap_or("").is_empty();
+        let can_save_separate = !self.save_merged && !self.processed_markdowns.is_empty();
+
+        if !self.is_processing && (can_save_merged || can_save_separate) {
             save_button = save_button.on_press(Message::SaveMarkdown);
         }
 
-        widget::column![ // Using iced::widget::column directly
+        // Markdown Preview Area
+        let markdown_preview = Scrollable::new(
+            Text::new(self.last_markdown_preview.as_deref().unwrap_or("No preview available."))
+        )
+        .height(Length::Fixed(200.0))
+        .width(Length::Fill); // Take available width
+
+        // Status message
+        let status_text = Text::new(&self.status_message);
+
+        // Layout
+        widget::column![
             open_button,
-            Text::new(file_path_display),
-            process_button,
+            file_path_display,
+            start_processing_button,
+            widget::Space::with_height(Length::Fixed(10.0)),
+            manual_url_text_input,
+            process_manual_url_button,
+            widget::Space::with_height(Length::Fixed(10.0)),
+            pause_resume_button,
+            widget::Space::with_height(Length::Fixed(10.0)),
+            save_mode_checkbox,
             save_button,
-            Text::new(&self.status_message)
+            widget::Space::with_height(Length::Fixed(10.0)),
+            Text::new("Markdown Preview:"),
+            markdown_preview,
+            widget::Space::with_height(Length::Fixed(10.0)),
+            status_text
         ]
         .padding(20)
         .spacing(10)
