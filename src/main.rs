@@ -63,21 +63,21 @@ impl App {
                 encoded_url
             );
 
-            Command::perform(
-                async move {
-                    const MAX_RETRIES: u32 = 3;
-                    const BASE_RETRY_DELAY_MS: u64 = 1000;
+            Command::perform(                async move {
+                    const MAX_RETRIES: u32 = 10;
+                    const BASE_RETRY_DELAY_MS: u64 = 5000;
                     let client = reqwest::Client::new();
+                    let mut last_error: Option<reqwest::Error> = None;
 
                     for attempt in 0..MAX_RETRIES {
                         match client.get(&request_url).send().await {
                             Ok(response) => {
                                 if response.status().is_success() {
                                     match response.text().await {
-                                        Ok(text) => return Ok((original_url_for_async.clone(), text)),
-                                        Err(e) => { // Text extraction error
+                                        Ok(text) => return Ok((original_url_for_async.clone(), text)),                                        Err(e) => { // Text extraction error
+                                            last_error = Some(e);
                                             if attempt == MAX_RETRIES - 1 {
-                                                return Err(Arc::new(e));
+                                                return Err(Arc::new(last_error.unwrap()));
                                             }
                                             // else, fall through to sleep and retry
                                         }
@@ -96,20 +96,28 @@ impl App {
                                         return Err(Arc::new(err_for_status));
                                     }
                                 }
-                            }
-                            Err(e) => { // Network or other reqwest error
+                            }                            Err(e) => { // Network or other reqwest error
+                                last_error = Some(e);
                                 if attempt == MAX_RETRIES - 1 {
-                                    return Err(Arc::new(e));
+                                    return Err(Arc::new(last_error.unwrap()));
                                 }
                                 // else, fall through to sleep and retry
                             }
-                        }
-                        // If not returned, it means it's a retryable failure but not the last attempt
+                        }                        // If not returned, it means it's a retryable failure but not the last attempt
                         let delay_duration = BASE_RETRY_DELAY_MS * (2u64.pow(attempt));
-                        sleep(Duration::from_millis(delay_duration)).await;
+                        sleep(Duration::from_millis(delay_duration)).await;                    }
+                    // Fallback if loop finishes - return the last error we encountered
+                    match last_error {
+                        Some(e) => Err(Arc::new(e)),
+                        None => {
+                            // This should never happen, but create a generic reqwest error just in case
+                            // We'll make a request to an invalid URL to get a proper reqwest::Error
+                            match reqwest::get("http://invalid-url-that-does-not-exist.invalid").await {
+                                Err(e) => Err(Arc::new(e)),
+                                Ok(_) => unreachable!("This URL should never succeed"),
+                            }
+                        }
                     }
-                    // Fallback if loop finishes
-                    Err(Arc::new(reqwest::Error::builder().kind(reqwest::error::ErrorKind::Request).message("All retries failed (custom timeout or max attempts reached)").build()))
                 },
                 Message::UrlProcessed,
             )
@@ -527,11 +535,8 @@ impl Application for App {
         let mut pause_resume_button = Button::new(Text::new(if self.is_paused { "Resume" } else { "Pause" }));
         if self.is_processing { // Only enable if a batch process is active
             pause_resume_button = pause_resume_button.on_press(Message::TogglePauseResume);
-        }
-
-        // Save options
-        let save_mode_checkbox = Checkbox::new("Save merged into single file", self.save_merged)
-            .on_toggle(|_is_checked| Message::ToggleSaveMode);
+        }        // Save options
+        let save_mode_checkbox = Checkbox::new("Save merged into single file", self.save_merged, |_is_checked| Message::ToggleSaveMode);
         // Note: Checkbox doesn't have a simple .disabled(bool) method.
         // If interaction needs to be prevented during self.is_processing,
         // one might conditionally avoid attaching .on_toggle or handle it in the update logic for ToggleSaveMode.
