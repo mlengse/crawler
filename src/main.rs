@@ -109,7 +109,7 @@ impl App {
                         sleep(Duration::from_millis(delay_duration)).await;
                     }
                     // Fallback if loop finishes
-                    Err(Arc::new(reqwest::Error::from(std::io::Error::new(std::io::ErrorKind::TimedOut, "All retries failed"))))
+                    Err(Arc::new(reqwest::Error::builder().kind(reqwest::error::ErrorKind::Request).message("All retries failed (custom timeout or max attempts reached)").build()))
                 },
                 Message::UrlProcessed,
             )
@@ -438,26 +438,8 @@ impl Application for App {
                             })
                             .collect();
 
-                        // let processed_markdowns_clone = self.processed_markdowns.clone(); // Not needed anymore
-                        // Need to capture self.generate_filename_from_url correctly or pass it
-                        // For simplicity, making generate_filename_from_url a static-like method or re-evaluating capture.
-                        // The current impl of generate_filename_from_url takes &self. This is fine as it's called before Command::perform.
-                        // However, the async block cannot directly call self.generate_filename_from_url.
-                        // So, filenames must be generated before the async block.
-
-                        let files_to_save: Vec<(PathBuf, String)> = processed_markdowns_clone.iter()
-                            .filter(|(_, content)| !content.starts_with("Error fetching markdown for URL:"))
-                            .map(|(url, content)| {
-                                let filename = self.generate_filename_from_url(url); // Call it here
-                                (dir_path.join(filename), (*content).clone()) // Deref content before cloning
-                            })
-                            .collect();
-
-                        // This check is now done above with files_to_save_tuples
-                        // if files_to_save_final.is_empty() {
-                        //    self.status_message = String::from("No valid markdown content to save separately (all items might be errors).");
-                        //    return Command::none();
-                        // }
+                        // The erroneous block that redefines files_to_save using processed_markdowns_clone is removed.
+                        // files_to_save_final is the correct variable to be used by Command::perform.
 
                         Command::perform(
                             async move {
@@ -525,18 +507,16 @@ impl Application for App {
         }
 
         // Manual URL input
-        let mut manual_url_text_input = TextInput::new(
-                "Enter URL manually and press Enter or click button",
-                &self.manual_url_input,
-                Message::ManualUrlInputChanged,
+        let manual_url_text_input = TextInput::new(
+                "Enter URL manually (then press Enter or click button)",
+                &self.manual_url_input
             )
+            .on_input(Message::ManualUrlInputChanged)
+            .on_submit(Message::ProcessManualUrl) // Allows pressing Enter to submit; actual processing is gated in update()
             .padding(10);
-        if self.is_processing {
-            manual_url_text_input = manual_url_text_input.on_submit(Message::ProcessManualUrl); // Allow submit if processing for some reason, but button is better
-        } else {
-            manual_url_text_input = manual_url_text_input.on_submit(Message::ProcessManualUrl);
-        }
-
+        // Note: TextInput doesn't have a simple .disabled() method.
+        // Interaction restriction is primarily handled by disabling the associated button
+        // and by the self.is_processing check in the Message::ProcessManualUrl handler.
 
         let mut process_manual_url_button = Button::new(Text::new("Process Manual URL"));
         if !self.is_processing && !self.manual_url_input.trim().is_empty() {
@@ -550,11 +530,12 @@ impl Application for App {
         }
 
         // Save options
-        let mut save_mode_checkbox = Checkbox::new("Save merged into single file", self.save_merged, Message::ToggleSaveMode);
-        if self.is_processing {
-             // save_mode_checkbox = save_mode_checkbox; // No easy way to disable checkbox interaction like on_press(None)
-        }
-
+        let save_mode_checkbox = Checkbox::new("Save merged into single file", self.save_merged)
+            .on_toggle(|_is_checked| Message::ToggleSaveMode);
+        // Note: Checkbox doesn't have a simple .disabled(bool) method.
+        // If interaction needs to be prevented during self.is_processing,
+        // one might conditionally avoid attaching .on_toggle or handle it in the update logic for ToggleSaveMode.
+        // For now, it remains interactive, but changing mode during processing has no immediate effect on an ongoing save.
 
         let mut save_button = Button::new(Text::new("Save Markdown"));
         // Enable if not processing AND ( (merged mode AND aggregated is Some) OR (separate mode AND processed_markdowns is not empty) )
