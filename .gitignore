@@ -1,8 +1,1 @@
-node_modules
-*lock*
-dist
-coverage
-.env
-.DS_Store
-.vscode
-*.pdf
+/target
