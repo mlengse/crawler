@@ -1,0 +1,14 @@
+[package]
+name = "rust_backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wasm-bindgen = "0.2"
+scraper = "0.14.0"  # Downgraded version
+html2md = "0.2.15"
+regex = "1.10.4"
+getrandom = { version = "0.2.12", features = ["js"], default-features = false } # For wasm-bindgen
+
+[lib]
+crate-type = ["cdylib", "rlib"]
