@@ -3,21 +3,90 @@ body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
   margin: 0;
   padding: 20px;
-  background-color: #f0f2f5; /* Lighter grey */
+  background-color: #f0f2f5;
   color: #333;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+  min-height: 100vh;
+  box-sizing: border-box;
 }
 
-.container {
+.app-container {
   background-color: #ffffff;
-  padding: 20px;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   width: 100%;
-  max-width: 700px; /* Max width for content */
+  max-width: 1400px;
+  margin: 0 auto;
   box-sizing: border-box;
+  overflow: hidden;
+}
+
+.main-content {
+  display: flex;
+  flex-direction: column;
+  min-height: 500px;
+}
+
+.controls-panel {
+  padding: 20px;
+  flex: 1;
+}
+
+.preview-panel {
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-top: 1px solid #e0e0e0;
+  flex: 1;
+}
+
+.preview-header {
+  margin-bottom: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.preview-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.preview-header h3 {
+  margin: 0;
+  color: #1c1e21;
+  font-size: 1.1em;
+  flex: 1;
+}
+
+.url-display {
+  font-size: 0.85em;
+  color: #666;
+  font-style: italic;
+  word-break: break-all;
+  max-width: 250px;
+  text-align: right;
+}
+
+/* Wide screen layout */
+@media (min-width: 1024px) {
+  .main-content {
+    flex-direction: row;
+  }
+  
+  .controls-panel {
+    width: 400px;
+    min-width: 400px;
+    border-right: 1px solid #e0e0e0;
+  }
+  
+  .preview-panel {
+    flex: 1;
+    border-top: none;
+    border-left: 1px solid #e0e0e0;
+  }
 }
 
 h1 {
@@ -62,9 +131,8 @@ button:disabled {
 }
 
 button.processing {
-  /* Example: could add a spinner or change text */
-  /* background-color: #ffc107; /* Example processing color */
-  /* color: #333; */
+  background-color: #ffc107;
+  color: #333;
 }
 
 
@@ -104,11 +172,22 @@ input[type="text"]:focus, textarea:focus {
 }
 
 textarea#markdownPreview {
-  background-color: #f8f9fa; /* Slightly off-white for preview */
-  font-family: monospace;
-  min-height: 150px; /* Ensure it's a decent size */
-  resize: vertical; /* Allow vertical resize */
-  overflow-y: auto; /* Ensure scrollability */
+  background-color: #ffffff;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 0.9em;
+  min-height: 400px;
+  height: 400px;
+  resize: vertical;
+  overflow-y: auto;
+  border: 1px solid #ddd;
+  line-height: 1.5;
+}
+
+@media (min-width: 1024px) {
+  textarea#markdownPreview {
+    height: calc(100vh - 200px);
+    min-height: 500px;
+  }
 }
 
 /* Checkbox and Label */
@@ -197,15 +276,6 @@ label[for="saveMergedCheckbox"] {
   margin-bottom: 0; /* Remove bottom margin */
 }
 
-/* Specific button widths if needed */
-#openFileBtn, #startProcessingBtn, #saveMarkdownBtn {
-    /* Full width by default is fine here, or set specific widths */
-}
-
-#processManualUrlBtn {
-    /* width: auto; /* Let it size based on text if it's in an input-group */
-}
-
 /* Ensure block display for elements not in flex containers if they were changed */
 #openFileBtn, #filePath, #startProcessingBtn, #pauseResumeBtn, #saveMarkdownBtn, #markdownPreview, #statusMessage, .checkbox-container {
     display: block; /* Reaffirm block if not part of a specific row layout like input-group */
@@ -215,4 +285,142 @@ label[for="saveMergedCheckbox"] {
 .checkbox-container label, .checkbox-container input {
     display: inline-block; /* Keep these inline within their container */
     width: auto;
+}
+
+.toggle-btn {
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 12px;
+  font-size: 0.8em;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  white-space: nowrap;
+  width: auto;
+  margin: 0;
+}
+
+.toggle-btn:hover {
+  background-color: #5a6268;
+}
+
+.toggle-btn.rendered {
+  background-color: #17a2b8;
+}
+
+.toggle-btn.rendered:hover {
+  background-color: #138496;
+}
+
+.rendered-preview {
+  background-color: #ffffff;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 20px;
+  min-height: 400px;
+  height: 400px;
+  overflow-y: auto;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  line-height: 1.6;
+  color: #333;
+}
+
+.rendered-preview h1, .rendered-preview h2, .rendered-preview h3, 
+.rendered-preview h4, .rendered-preview h5, .rendered-preview h6 {
+  margin-top: 24px;
+  margin-bottom: 16px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.rendered-preview h1 { font-size: 2em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
+.rendered-preview h2 { font-size: 1.5em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
+.rendered-preview h3 { font-size: 1.25em; }
+.rendered-preview h4 { font-size: 1em; }
+.rendered-preview h5 { font-size: 0.875em; }
+.rendered-preview h6 { font-size: 0.85em; color: #6a737d; }
+
+.rendered-preview p {
+  margin-bottom: 16px;
+}
+
+.rendered-preview code {
+  background-color: rgba(27,31,35,0.05);
+  border-radius: 3px;
+  font-size: 85%;
+  margin: 0;
+  padding: 0.2em 0.4em;
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+}
+
+.rendered-preview pre {
+  background-color: #f6f8fa;
+  border-radius: 6px;
+  font-size: 85%;
+  line-height: 1.45;
+  overflow: auto;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.rendered-preview pre code {
+  background-color: transparent;
+  border: 0;
+  display: inline;
+  line-height: inherit;
+  margin: 0;
+  max-width: auto;
+  overflow: visible;
+  padding: 0;
+  word-wrap: normal;
+}
+
+.rendered-preview blockquote {
+  border-left: 4px solid #dfe2e5;
+  margin: 0 0 16px 0;
+  padding: 0 16px;
+  color: #6a737d;
+}
+
+.rendered-preview ul, .rendered-preview ol {
+  margin-bottom: 16px;
+  padding-left: 30px;
+}
+
+.rendered-preview li {
+  margin-bottom: 0.25em;
+}
+
+.rendered-preview a {
+  color: #0366d6;
+  text-decoration: none;
+}
+
+.rendered-preview a:hover {
+  text-decoration: underline;
+}
+
+.rendered-preview table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  margin-bottom: 16px;
+  width: 100%;
+}
+
+.rendered-preview table th, .rendered-preview table td {
+  border: 1px solid #dfe2e5;
+  padding: 6px 13px;
+}
+
+.rendered-preview table th {
+  background-color: #f6f8fa;
+  font-weight: 600;
+}
+
+@media (min-width: 1024px) {
+  .rendered-preview {
+    height: calc(100vh - 200px);
+    min-height: 500px;
+  }
 }
