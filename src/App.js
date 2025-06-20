@@ -233,10 +233,30 @@ function App() {
               success = true;
               return { url, markdown, usedXHR: true };
             } catch (xhrError) {
-              console.error(`XHR fallback failed for ${url}:`, xhrError);
-              errorMessage = "Masalah CORS atau jaringan - coba URL lain atau gunakan proxy";
+                console.error(`XHR fallback failed for ${url}:`, xhrError);
+                
+                // Try one more attempt with a CORS proxy service
+                try {
+                const proxyUrl = "https://api.codetabs.com/v1/proxy?quest=";
+                const proxiedUrl = proxyUrl + encodeURIComponent(url);
+                
+                console.log(`Trying CORS proxy service for ${url}`);
+                const proxyResponse = await fetch(proxiedUrl);
+                
+                if (proxyResponse.ok) {
+                  const htmlContent = await proxyResponse.text();
+                  const markdown = window.process_html_to_markdown(htmlContent, url);
+                  success = true;
+                  return { url, markdown, usedProxy: true };
+                } else {
+                  throw new Error(`Proxy HTTP error! status: ${proxyResponse.status}`);
+                }
+                } catch (proxyError) {
+                console.error(`CORS proxy attempt failed for ${url}:`, proxyError);
+                errorMessage = "Masalah CORS atau jaringan - coba URL lain atau gunakan proxy";
+                }
             }
-            }
+          }
         } else if (error.message.includes("HTTP error! status: 404")) {
           errorMessage = "Halaman tidak ditemukan (404)";
         } else if (error.message.includes("HTTP error! status: 403")) {
