@@ -30,14 +30,14 @@ function generateFilenameFromUrl(urlStr) {
     return (filename || "untitled") + ".md";
   } catch (e) {
     // Fallback for invalid URLs
-    return (urlStr.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50) || "invalid_url") + ".md";
+    return (urlStr.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 50) || "url_tidak_valid") + ".md";
   }
 }
 
 
 function App() {
   const [wasmInitialized, setWasmInitialized] = useState(false);
-  const [status, setStatus] = useState({ message: 'Initializing WASM...', type: 'info' });
+  const [status, setStatus] = useState({ message: 'Menginisialisasi WASM...', type: 'info' });
   const [markdownResult, setMarkdownResult] = useState(''); // For single manual URL or last from file
   const [lastProcessedUrl, setLastProcessedUrl] = useState('');
 
@@ -53,7 +53,7 @@ function App() {
     // Load WASM module using dynamic import
     const loadWasm = async () => {
       try {
-        setStatus({ message: 'Loading WASM module...', type: 'info' });
+        setStatus({ message: 'Memuat modul WASM...', type: 'info' });
         
         // Use dynamic import to load the WASM module
         try {
@@ -68,7 +68,7 @@ function App() {
             if (typeof wasmInit.process_html_to_markdown === 'function') {
               window.process_html_to_markdown = wasmInit.process_html_to_markdown;
               setWasmInitialized(true);
-              setStatus({ message: 'WASM initialized successfully. Ready to process URLs.', type: 'success' });
+              setStatus({ message: 'WASM berhasil diinisialisasi. Siap memproses URL.', type: 'success' });
               return;
             }
           }
@@ -79,7 +79,7 @@ function App() {
         const wasmUrl = `${process.env.PUBLIC_URL || ''}/rust_backend_bg.wasm`;
         const wasmResponse = await fetch(wasmUrl);
         if (!wasmResponse.ok) {
-          throw new Error(`Failed to fetch WASM: ${wasmResponse.status}`);
+          throw new Error(`Gagal mengambil WASM: ${wasmResponse.status}`);
         }
         
         // eslint-disable-next-line no-unused-vars
@@ -91,7 +91,7 @@ function App() {
         
         window.process_html_to_markdown = (html, url) => {
           // Enhanced JavaScript-based HTML to markdown conversion
-          let markdown = `# Content from: ${url}\n\n`;
+          let markdown = `# Konten dari: ${url}\n\n`;
           
           // Remove script and style tags
           html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
@@ -138,12 +138,12 @@ function App() {
         };
         
         setWasmInitialized(true);
-        setStatus({ message: 'Ready to process URLs (using JavaScript fallback).', type: 'warning' });} catch (err) {
+        setStatus({ message: 'Siap memproses URL (menggunakan fallback JavaScript).', type: 'warning' });} catch (err) {
         console.error("Error initializing WASM module:", err);
         // Fallback to JavaScript-based conversion
         window.process_html_to_markdown = (html, url) => {
           // Simple HTML to markdown conversion as fallback
-          let markdown = `# Content from: ${url}\n\n`;
+          let markdown = `# Konten dari: ${url}\n\n`;
           
           // Remove script and style tags
           html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
@@ -167,7 +167,7 @@ function App() {
         };
         
         setWasmInitialized(true);
-        setStatus({ message: 'Using fallback JavaScript conversion. Ready to process URLs.', type: 'warning' });
+        setStatus({ message: 'Menggunakan konversi JavaScript fallback. Siap memproses URL.', type: 'warning' });
       }
     };
     
@@ -177,54 +177,54 @@ function App() {
   const processSingleUrl = async (url, isFromFile = false, maxRetriesOverride = null) => {
     const retriesToUse = maxRetriesOverride !== null ? maxRetriesOverride : maxRetries;
     if (!wasmInitialized) {
-      setStatus({ message: 'WASM not initialized yet. Please wait.', type: 'error' });
+      setStatus({ message: 'WASM belum diinisialisasi. Mohon tunggu.', type: 'error' });
       return null;
     }
     if (!url || !url.trim()) {
-      if (!isFromFile) setStatus({ message: 'Invalid URL provided.', type: 'error' });
-      return { url, markdown: 'Error: Invalid URL', error: 'Invalid URL' };
+      if (!isFromFile) setStatus({ message: 'URL tidak valid.', type: 'error' });
+      return { url, markdown: 'Error: URL tidak valid', error: 'URL tidak valid' };
     }
 
-    setStatus({ message: `Fetching: ${url}...`, type: 'info' });
+    setStatus({ message: `Mengambil: ${url}...`, type: 'info' });
     if (!isFromFile) setLastProcessedUrl(url);    let attempts = 0;
     let success = false;
 
     while (attempts < retriesToUse && !success) {
       try {
         attempts++;
-        setStatus({ message: `Processing: ${url} (attempt ${attempts}/${retriesToUse})...`, type: 'info' });
+        setStatus({ message: `Memproses: ${url} (percobaan ${attempts}/${retriesToUse})...`, type: 'info' });
         
         const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
         const htmlContent = await response.text();
         
-        setStatus({ message: `Converting: ${url} to markdown...`, type: 'info' });
+        setStatus({ message: `Mengkonversi: ${url} ke markdown...`, type: 'info' });
         const markdown = window.process_html_to_markdown(htmlContent, url);
         
         success = true;
         return { url, markdown };
       } catch (error) {
-        console.error(`Error processing ${url} (attempt ${attempts}):`, error);
+        console.error(`Error memproses ${url} (percobaan ${attempts}):`, error);
         let errorMessage = error.message;
         
         // Enhanced error categorization (from renderer.js)
         if (error instanceof TypeError && error.message === "Failed to fetch") {
-          errorMessage = "CORS issue or network problem - try a different URL or use a proxy";
+          errorMessage = "Masalah CORS atau jaringan - coba URL lain atau gunakan proxy";
         } else if (error.message.includes("HTTP error! status: 404")) {
-          errorMessage = "Page not found (404)";
+          errorMessage = "Halaman tidak ditemukan (404)";
         } else if (error.message.includes("HTTP error! status: 403")) {
-          errorMessage = "Access forbidden (403)";
+          errorMessage = "Akses dilarang (403)";
         } else if (error.message.includes("HTTP error! status: 500")) {
-          errorMessage = "Server error (500)";        }
+          errorMessage = "Error server (500)";        }
         
         if (attempts >= retriesToUse) {
-          if (!isFromFile) setStatus({ message: `Error processing ${url}: ${errorMessage}`, type: 'error' });
+          if (!isFromFile) setStatus({ message: `Error memproses ${url}: ${errorMessage}`, type: 'error' });
           return { url, markdown: `Error: ${errorMessage}`, error: errorMessage };
         }
         
         // Add delay between retries (from renderer.js pattern)
         if (attempts < retriesToUse) {
-          setStatus({ message: `Retrying ${url} in ${Math.pow(2, attempts)} seconds... (${attempts}/${retriesToUse})`, type: 'warning' });
+          setStatus({ message: `Mencoba lagi ${url} dalam ${Math.pow(2, attempts)} detik... (${attempts}/${retriesToUse})`, type: 'warning' });
           await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts) * 1000));
         }
       }
@@ -234,12 +234,12 @@ function App() {
   // Enhanced file processing with progress tracking (from renderer.js)
   const startProcessingAll = async () => {
     if (currentProcessingIndex >= urlsFromFile.length && urlsFromFile.length > 0) {
-        setStatus({ message: 'All URLs already processed.', type: 'info' });
+        setStatus({ message: 'Semua URL sudah diproses.', type: 'info' });
         setIsProcessingMultiple(false);
         return;
     }
     if (urlsFromFile.length === 0) {
-        setStatus({ message: 'No URLs loaded from file to process.', type: 'warning'});
+        setStatus({ message: 'Tidak ada URL dari file untuk diproses.', type: 'warning'});
         return;
     }
 
@@ -256,7 +256,7 @@ function App() {
       // Check pause state before each URL
       if (processingPausedRef.current) {
         setCurrentProcessingIndex(i);
-        setStatus({ message: `Paused at URL ${i + 1}/${urlsFromFile.length}: ${urlsFromFile[i]}`, type: 'warning' });
+        setStatus({ message: `Dijeda pada URL ${i + 1}/${urlsFromFile.length}: ${urlsFromFile[i]}`, type: 'warning' });
         return;
       }
       
@@ -264,7 +264,7 @@ function App() {
       setLastProcessedUrl(url);
       setCurrentProcessingIndex(i + 1); // Update progress
       
-      setStatus({ message: `Processing ${i + 1}/${urlsFromFile.length}: ${url}`, type: 'info' });
+      setStatus({ message: `Memproses ${i + 1}/${urlsFromFile.length}: ${url}`, type: 'info' });
       
       const result = await processSingleUrl(url, true);
       tempProcessedMarkdowns.push(result);
@@ -272,9 +272,9 @@ function App() {
       setMarkdownResult(result.markdown);
 
       if (result.error) {
-        setStatus({ message: `Error processing ${url}: ${result.error}`, type: 'error' });
+        setStatus({ message: `Error memproses ${url}: ${result.error}`, type: 'error' });
       } else {
-        setStatus({ message: `Successfully processed ${url}`, type: 'success' });
+        setStatus({ message: `Berhasil memproses ${url}`, type: 'success' });
       }
 
       // Small delay between URLs to prevent overwhelming servers
@@ -289,9 +289,9 @@ function App() {
     const successCount = tempProcessedMarkdowns.filter(item => !item.error).length;
     const errorCount = tempProcessedMarkdowns.length - successCount;
     
-    let message = `Processing complete! ${successCount}/${tempProcessedMarkdowns.length} URLs processed successfully.`;
+    let message = `Pemrosesan selesai! ${successCount}/${tempProcessedMarkdowns.length} URL berhasil diproses.`;
     if (errorCount > 0) {
-      message += ` ${errorCount} URLs failed.`;
+      message += ` ${errorCount} URL gagal.`;
       setStatus({ message, type: 'warning' });
     } else {
       setStatus({ message, type: 'success' });
@@ -311,7 +311,7 @@ function App() {
 
     if (urlsFromFile.length > 0 && processedMarkdowns.length > 0) {
       if (successfulMarkdowns.length === 0) {
-        setStatus({ message: 'No successful content to save.', type: 'warning' });
+        setStatus({ message: 'Tidak ada konten yang berhasil untuk disimpan.', type: 'warning' });
         return;
       }
       
@@ -324,7 +324,7 @@ function App() {
         const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
         const filename = `merged_urls_${timestamp}.md`;
         downloadFile(filename, mergedContent);
-        setStatus({ message: `Saved ${successfulMarkdowns.length} URLs as merged file: ${filename}`, type: 'success' });
+        setStatus({ message: `Menyimpan ${successfulMarkdowns.length} URL sebagai file gabungan: ${filename}`, type: 'success' });
       } else {
         // Save each URL as separate file
         successfulMarkdowns.forEach((item, index) => {
@@ -336,15 +336,15 @@ function App() {
             downloadFile(filename, content);
           }, index * 200);
         });
-        setStatus({ message: `Initiated download of ${successfulMarkdowns.length} separate files`, type: 'success' });
+        setStatus({ message: `Memulai unduhan ${successfulMarkdowns.length} file terpisah`, type: 'success' });
       }
     } else if (urlsFromFile.length === 0 && lastProcessedUrl && markdownResult && !markdownResult.startsWith("Error:")) {
       // Single manual URL result
       const filename = generateFilenameFromUrl(lastProcessedUrl);
       const content = `# ${lastProcessedUrl}\n\n${markdownResult}`;
-      downloadFile(filename, content);      setStatus({ message: `Saved: ${filename}`, type: 'success' });
+      downloadFile(filename, content);      setStatus({ message: `Tersimpan: ${filename}`, type: 'success' });
     } else {
-      setStatus({ message: 'No content available to save.', type: 'warning' });
+      setStatus({ message: 'Tidak ada konten yang tersedia untuk disimpan.', type: 'warning' });
     }
   };
 
@@ -356,7 +356,7 @@ function App() {
       if (result.error) {
         setStatus({ message: `Error: ${result.error}`, type: 'error' });
       } else {
-        setStatus({ message: `Successfully processed: ${url}`, type: 'success' });
+        setStatus({ message: `Berhasil memproses: ${url}`, type: 'success' });
       }
     }
   };
@@ -366,7 +366,7 @@ function App() {
     setUrlsFromFile(urls);
     setProcessedMarkdowns([]);
     setCurrentProcessingIndex(0);
-    setStatus({ message: `Loaded ${urls.length} URLs from file. Click "Start Processing All" to begin.`, type: 'info' });
+    setStatus({ message: `Memuat ${urls.length} URL dari file. Klik "Mulai Memproses Semua" untuk memulai.`, type: 'info' });
   };
 
   const hasAnyProcessedContent = () => {
@@ -386,17 +386,17 @@ function App() {
     setIsPaused(newPausedState);
     
     if (!newPausedState && urlsFromFile.length > 0 && currentProcessingIndex < urlsFromFile.length) {
-      setStatus({ message: 'Resuming processing...', type: 'info' });
+      setStatus({ message: 'Melanjutkan pemrosesan...', type: 'info' });
       startProcessingAll();
     } else if (newPausedState) {
-      setStatus({ message: 'Processing paused. Click Resume to continue.', type: 'warning' });
+      setStatus({ message: 'Pemrosesan dijeda. Klik Lanjutkan untuk melanjutkan.', type: 'warning' });
     }
   };
 
   return (
     <div className="App">
       <header className="App-header">
-        <h1>URL to Markdown Converter</h1>
+        <h1>Konverter URL ke Markdown</h1>
       </header>
       <main>
         <div className="controls-section">
@@ -420,11 +420,11 @@ function App() {
           />
           {processedMarkdowns.length > 0 && urlsFromFile.length > 0 && (
             <div className="processed-list">
-              <h3>Processed URLs from File ({processedMarkdowns.filter(item => item && !item.error).length}/{urlsFromFile.length} successful):</h3>
+              <h3>URL dari File yang Diproses ({processedMarkdowns.filter(item => item && !item.error).length}/{urlsFromFile.length} berhasil):</h3>
               <ul>
                 {processedMarkdowns.map((item, index) => (
                   <li key={index} className={item.error ? 'error-item' : 'success-item'}>
-                    <strong>{item.url}</strong>: {item.error ? `Error - ${item.error}` : 'Success'}
+                    <strong>{item.url}</strong>: {item.error ? `Error - ${item.error}` : 'Berhasil'}
                   </li>
                 ))}
               </ul>

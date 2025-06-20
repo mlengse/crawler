@@ -1,22 +1,48 @@
 {
-  "name": "client",
-  "version": "0.1.0",
-  "private": true,  "dependencies": {
+  "name": "url-to-markdown-converter",
+  "version": "1.0.0",
+  "description": "A powerful web-based tool that converts web pages to Markdown format",
+  "private": false,
+  "keywords": [
+    "markdown",
+    "converter",
+    "url",
+    "web-scraping",
+    "react",
+    "wasm",
+    "rust",
+    "batch-processing"
+  ],
+  "author": "Anjang Kusuma Netra",
+  "license": "MIT",
+  "homepage": "https://client-12lqqviai-anjang-kusuma-netras-projects.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/username/url-to-markdown-converter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/username/url-to-markdown-converter/issues"
+  },"dependencies": {
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
     "marked": "^15.0.12",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0",
-    "react-scripts": "5.0.1",
+    "react-dom": "^19.1.0",    "react-scripts": "5.0.1",
     "web-vitals": "^2.1.4"
-  },"scripts": {
+  },
+  "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
     "build:vercel": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "test:coverage": "react-scripts test --coverage --watchAll=false",
+    "eject": "react-scripts eject",
+    "deploy": "vercel --prod",
+    "preview": "serve -s build",
+    "lint": "eslint src --ext .js,.jsx",
+    "lint:fix": "eslint src --ext .js,.jsx --fix"
   },
   "eslintConfig": {
     "extends": [
