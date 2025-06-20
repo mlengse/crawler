@@ -12,12 +12,13 @@ node_modules/
 # Development files - Rust specific
 src/src/
 src/target/
-src/Cargo.toml
-src/Cargo.lock
 src/wasm-pack-v0.13.1-x86_64-pc-windows-msvc/
 src/wasm-pack.tar.gz
-*.md
 *.log
+
+# Don't exclude important files
+!public/index.html
+!README.md
 .git/
 .gitignore
 
