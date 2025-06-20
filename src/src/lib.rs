@@ -1,13 +1,28 @@
 use wasm_bindgen::prelude::*;
 
+// Import the `console.log` function from the `console` module
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
+    
+    #[wasm_bindgen(js_namespace = console, js_name = error)]
+    fn error(s: &str);
 }
 
+// Define a macro for easier console logging
 macro_rules! console_log {
     ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
+}
+
+#[allow(unused_macros)]
+macro_rules! console_error {
+    ($($t:tt)*) => (error(&format_args!($($t)*).to_string()))
+}
+
+#[allow(unused_macros)]
+macro_rules! console_warn {
+    ($($t:tt)*) => (log(&format!("WARN: {}", format_args!($($t)*))))
 }
 
 // Simple add function for testing
@@ -27,7 +42,7 @@ pub fn process_html_to_markdown(html_content: String, base_url: String) -> Resul
     }
 
     // Basic HTML cleaning and conversion
-    let mut markdown = html_content
+    let markdown = html_content
         // Remove script and style tags
         .replace("<script", "<!-- REMOVED SCRIPT")
         .replace("</script>", "END SCRIPT -->")

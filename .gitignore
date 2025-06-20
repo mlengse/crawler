@@ -224,9 +224,6 @@ out/
 *.sublime-project
 *.sublime-workspace
 
-# Project specific compiled assets
-public/rust_backend_bg.js
-public/rust_backend_bg.wasm
-public/rust_backend_bg.wasm.d.ts
-public/rust_backend.d.ts
-public/rust_backend.js
+Cargo.lock
+src/target
+src/wasm-pack-v0.13.1-x86_64-pc-windows-msvc
