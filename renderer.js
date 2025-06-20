@@ -11,6 +11,7 @@ let isPaused = false;
 let lastMarkdownPreview = "";
 let saveMerged = true;
 let manualUrlText = "";
+let isRenderedMode = false; // Toggle between raw markdown and rendered HTML
 
 // DOM Element References
 const openFileBtn = document.getElementById('openFileBtn');
@@ -23,6 +24,9 @@ const saveMergedCheckbox = document.getElementById('saveMergedCheckbox');
 const saveMarkdownBtn = document.getElementById('saveMarkdownBtn');
 const markdownPreview = document.getElementById('markdownPreview');
 const statusMessageDisplay = document.getElementById('statusMessage');
+const lastCrawledUrlDisplay = document.getElementById('lastCrawledUrl');
+const togglePreviewBtn = document.getElementById('togglePreviewBtn');
+const renderedPreview = document.getElementById('renderedPreview');
 
 // --- UI Update Function ---
 function updateUI() {
@@ -30,7 +34,18 @@ function updateUI() {
   statusMessageDisplay.className = statusMessageType; // Apply class for styling
 
   filePathDisplay.textContent = selectedFilePath ? selectedFilePath : "No file selected.";
-  markdownPreview.value = lastMarkdownPreview;
+    // Update preview to show only the last crawled URL's content
+  if (processedMarkdowns.length > 0) {
+    const lastProcessed = processedMarkdowns[processedMarkdowns.length - 1];
+    markdownPreview.value = lastProcessed.markdown;
+    lastCrawledUrlDisplay.textContent = lastProcessed.url;
+  } else {
+    markdownPreview.value = lastMarkdownPreview;
+    lastCrawledUrlDisplay.textContent = "No URL processed yet";
+  }
+  
+  // Update preview display based on current mode
+  updatePreviewDisplay();
 
   openFileBtn.disabled = isProcessing;
   startProcessingBtn.disabled = isProcessing || !selectedFilePath || urlsToProcess.length === 0;
@@ -58,6 +73,15 @@ function updateUI() {
     startProcessingBtn.classList.remove('processing');
     processManualUrlBtn.classList.remove('processing');
   }
+
+  // Update last crawled URL display
+  if (urlsToProcess.length > 0 && currentProcessingUrlIndex > 0) {
+    const lastCrawledUrl = urlsToProcess[currentProcessingUrlIndex - 1];
+    lastCrawledUrlDisplay.textContent = `Last Crawled URL: ${lastCrawledUrl}`;
+    lastCrawledUrlDisplay.classList.remove('hidden');
+  } else {
+    lastCrawledUrlDisplay.classList.add('hidden');
+  }
 }
 
 // Helper to set status
@@ -67,7 +91,40 @@ function setStatus(message, type = 'status-info') {
     updateUI();
 }
 
+// Function to update preview display based on mode
+function updatePreviewDisplay() {
+  if (isRenderedMode) {
+    markdownPreview.style.display = 'none';
+    renderedPreview.style.display = 'block';
+    togglePreviewBtn.textContent = '🖥️ Rendered';
+    togglePreviewBtn.classList.add('rendered');
+    
+    // Convert markdown to HTML
+    const markdownContent = markdownPreview.value;
+    if (markdownContent.trim()) {
+      try {
+        const htmlContent = marked.parse(markdownContent);
+        renderedPreview.innerHTML = htmlContent;
+      } catch (error) {
+        renderedPreview.innerHTML = '<p style="color: red;">Error rendering markdown: ' + error.message + '</p>';
+      }
+    } else {
+      renderedPreview.innerHTML = '<p style="color: #666; font-style: italic;">No content to preview</p>';
+    }
+  } else {
+    markdownPreview.style.display = 'block';
+    renderedPreview.style.display = 'none';
+    togglePreviewBtn.textContent = '📝 Raw';
+    togglePreviewBtn.classList.remove('rendered');
+  }
+}
+
 // --- Event Listeners ---
+
+togglePreviewBtn.addEventListener('click', () => {
+  isRenderedMode = !isRenderedMode;
+  updatePreviewDisplay();
+});
 
 manualUrlInput.addEventListener('input', (event) => {
   manualUrlText = event.target.value;
@@ -80,10 +137,10 @@ saveMergedCheckbox.addEventListener('change', (event) => {
     const successfulMarkdowns = processedMarkdowns.filter(item => !item.markdown.startsWith("Error processing"));
     if (saveMerged) {
       aggregatedMarkdown = successfulMarkdowns.map(item => `## ${item.url}\n\n${item.markdown}`).join('\n\n---\n\n');
-      lastMarkdownPreview = aggregatedMarkdown;
+      // Preview still shows last individual URL, not merged content
     } else {
       aggregatedMarkdown = null;
-      lastMarkdownPreview = processedMarkdowns.map(p => `## ${p.url}\n\n${p.markdown}`).join("\n\n---\n\n");
+      // Preview still shows last individual URL
     }
   }
   updateUI();
@@ -118,7 +175,7 @@ async function processNextUrl() {
 
     const apiUrl = `https://urltomarkdown.herokuapp.com/?url=${encodeURIComponent(originalUrl)}&title=true&links=true&clean=true`;
     let attempts = 0;
-    const maxRetries = 5;
+    const maxRetries = 10;
     let success = false;
 
     while (attempts < maxRetries && !success) {
@@ -148,10 +205,9 @@ async function processNextUrl() {
           break;
         }
         if (attempts < maxRetries) await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts) * 1000));
-      }
-    }
+      }    }
     lastMarkdownPreview = processedMarkdowns.map(p => `## ${p.url}\n\n${p.markdown}`).join("\n\n---\n\n");
-    updateUI(); // Update preview after each attempt
+    updateUI(); // Update preview after each URL is processed to show the latest
 
     currentProcessingUrlIndex++;
     if (!isPaused) processNextUrl();
@@ -178,10 +234,9 @@ function processingComplete() {
   }
 
   const successfulMarkdowns = processedMarkdowns.filter(item => !item.markdown.startsWith("Error processing"));
-
   if (saveMerged) {
     aggregatedMarkdown = successfulMarkdowns.map(item => `## ${item.url}\n\n${item.markdown}`).join('\n\n---\n\n');
-    lastMarkdownPreview = aggregatedMarkdown;
+    // Keep the last processed URL in preview for individual view
   } else {
      lastMarkdownPreview = processedMarkdowns.map(p => `## ${p.url}\n\n${p.markdown}`).join("\n\n---\n\n");
   }
@@ -253,8 +308,7 @@ openFileBtn.addEventListener('click', async () => {
         setStatus(`File selected: ${selectedFilePath}. ${urlsToProcess.length} URLs loaded. Click 'Start Processing File'.`, 'status-success');
       } else {
         setStatus(`File selected: ${selectedFilePath}, but it contains no processable URLs.`, 'status-warning');
-      }
-      processedMarkdowns = [];
+      }      processedMarkdowns = [];
       aggregatedMarkdown = null;
       lastMarkdownPreview = "";
       currentProcessingUrlIndex = 0;
@@ -357,3 +411,4 @@ saveMarkdownBtn.addEventListener('click', async () => {
 
 // Initial UI setup
 setStatus("Welcome! Please open a URL file or enter a URL manually.", "status-info");
+updatePreviewDisplay(); // Initialize preview display mode

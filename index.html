@@ -1,43 +1,55 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="UTF-8">
-    <title>URL to Markdown Converter</title>
+    <meta charset="UTF-8">    <title>URL to Markdown Converter</title>
     <link rel="stylesheet" href="style.css">
-  </head>
-  <body>
-    <div class="container">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  </head><body>
+    <div class="app-container">
       <h1>URL to Markdown Converter</h1>
+      
+      <div class="main-content">
+        <div class="controls-panel">
+          <button id="openFileBtn">Open URL File</button>
+          <p id="filePath">No file selected.</p>
 
-      <button id="openFileBtn">Open URL File</button>
-      <p id="filePath">No file selected.</p>
+          <button id="startProcessingBtn">Start Processing File</button>
 
-      <button id="startProcessingBtn">Start Processing File</button>
+          <hr>
 
-      <hr>
+          <div class="input-group">
+            <input type="text" id="manualUrlInput" placeholder="Enter URL manually">
+            <button id="processManualUrlBtn">Process Manual URL</button>
+          </div>
 
-      <div class="input-group">
-        <input type="text" id="manualUrlInput" placeholder="Enter URL manually">
-        <button id="processManualUrlBtn">Process Manual URL</button>
+          <hr>
+
+          <button id="pauseResumeBtn">Pause</button>
+
+          <div class="checkbox-container">
+            <input type="checkbox" id="saveMergedCheckbox" checked>
+            <label for="saveMergedCheckbox">Save merged into single file</label>
+          </div>
+
+          <button id="saveMarkdownBtn">Save Markdown</button>
+
+          <hr>
+
+          <p id="statusMessage" class="status-info">Welcome!</p> <!-- Default class -->
+        </div>
+          <div class="preview-panel">
+          <div class="preview-header">
+            <h3>Last Crawled URL Preview</h3>
+            <div class="preview-controls">
+              <span id="lastCrawledUrl" class="url-display">No URL processed yet</span>
+              <button id="togglePreviewBtn" class="toggle-btn">📝 Raw</button>
+            </div>
+          </div>
+          <textarea id="markdownPreview" rows="20" readonly placeholder="Markdown preview will appear here after processing URLs..."></textarea>
+          <div id="renderedPreview" class="rendered-preview" style="display: none;"></div>
+        </div>
       </div>
-
-      <hr>
-
-      <button id="pauseResumeBtn">Pause</button>
-
-      <div class="checkbox-container">
-        <input type="checkbox" id="saveMergedCheckbox" checked>
-        <label for="saveMergedCheckbox">Save merged into single file</label>
-      </div>
-
-      <button id="saveMarkdownBtn">Save Markdown</button>
-
-      <hr>
-
-      <textarea id="markdownPreview" rows="10" readonly placeholder="Markdown preview..."></textarea>
-
-      <p id="statusMessage" class="status-info">Welcome!</p> <!-- Default class -->
-    </div> <!-- /container -->
+    </div> <!-- /app-container -->
     <script src="./renderer.js"></script>
   </body>
 </html>
