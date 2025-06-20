@@ -7,7 +7,9 @@ import reportWebVitals from './reportWebVitals';
 // Register Service Worker for CORS handling
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js')
+    // Use relative path for better compatibility with different deployment environments
+    const swPath = `${process.env.PUBLIC_URL}/sw.js`;
+    navigator.serviceWorker.register(swPath, { scope: '/' })
       .then(registration => {
         console.log('Service Worker registered successfully:', registration.scope);
       })
