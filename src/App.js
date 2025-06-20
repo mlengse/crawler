@@ -209,7 +209,34 @@ function App() {
         
         // Enhanced error categorization (from renderer.js)
         if (error instanceof TypeError && error.message === "Failed to fetch") {
-          errorMessage = "Masalah CORS atau jaringan - coba URL lain atau gunakan proxy";
+            errorMessage = "Masalah CORS atau jaringan - mencoba dengan XMLHttpRequest...";
+            
+            // Try using XMLHttpRequest as a fallback for CORS issues
+            if (attempts === retriesToUse - 1) {
+            try {
+              const xhrPromise = new Promise((resolve, reject) => {
+              const xhr = new XMLHttpRequest();
+              xhr.open('GET', url, true);
+              xhr.onload = () => {
+                if (xhr.status >= 200 && xhr.status < 400) {
+                resolve(xhr.responseText);
+                } else {
+                reject(new Error(`XHR HTTP error! status: ${xhr.status}`));
+                }
+              };
+              xhr.onerror = () => reject(new Error('XHR request failed'));
+              xhr.send();
+              });
+              
+              const htmlContent = await xhrPromise;
+              const markdown = window.process_html_to_markdown(htmlContent, url);
+              success = true;
+              return { url, markdown, usedXHR: true };
+            } catch (xhrError) {
+              console.error(`XHR fallback failed for ${url}:`, xhrError);
+              errorMessage = "Masalah CORS atau jaringan - coba URL lain atau gunakan proxy";
+            }
+            }
         } else if (error.message.includes("HTTP error! status: 404")) {
           errorMessage = "Halaman tidak ditemukan (404)";
         } else if (error.message.includes("HTTP error! status: 403")) {
@@ -218,8 +245,37 @@ function App() {
           errorMessage = "Error server (500)";        }
         
         if (attempts >= retriesToUse) {
-          if (!isFromFile) setStatus({ message: `Error memproses ${url}: ${errorMessage}`, type: 'error' });
-          return { url, markdown: `Error: ${errorMessage}`, error: errorMessage };
+          // Try a fallback using JavaScript-based conversion as last resort
+          try {
+            console.warn(`Using JavaScript fallback for URL ${url} after ${retriesToUse} failed attempts`);
+            
+            // Make one more request with the JavaScript fallback approach
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            const htmlContent = await response.text();
+            
+            // Create a simplified HTML to markdown conversion
+            let markdown = `# Konten dari: ${url} (Dikonversi dengan metode fallback)\n\n`;
+            
+            // Basic HTML cleanup and conversion
+            markdown += htmlContent
+              .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+              .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+              .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n')
+              .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n')
+              .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n')
+              .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
+              .replace(/<a[^>]*href=["']([^"']*)["'][^>]*>(.*?)<\/a>/gi, '[$2]($1)')
+              .replace(/<br\s*\/?>/gi, '\n')
+              .replace(/<[^>]*>/g, '') // Remove remaining HTML tags
+              .replace(/\n\s*\n\s*\n/g, '\n\n'); // Clean up multiple newlines
+            
+            return { url, markdown, usedFallback: true };
+          } catch (fallbackError) {
+            console.error(`Fallback conversion failed for ${url}:`, fallbackError);
+            if (!isFromFile) setStatus({ message: `Error memproses ${url}: ${errorMessage}`, type: 'error' });
+            return { url, markdown: `Error: ${errorMessage}`, error: errorMessage };
+          }
         }
         
         // Add delay between retries (from renderer.js pattern)
