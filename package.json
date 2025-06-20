@@ -30,18 +30,18 @@
     "react": "^19.1.0",
     "react-dom": "^19.1.0",    "react-scripts": "5.0.1",
     "web-vitals": "^2.1.4"
-  },
-  "scripts": {
+  },  "scripts": {
     "start": "react-scripts start",
-    "build": "react-scripts build",
-    "build:vercel": "react-scripts build",
+    "build": "react-scripts build && cp public/sw.js build/",
+    "build:vercel": "react-scripts build && cp public/sw.js build/",
     "test": "react-scripts test",
     "test:coverage": "react-scripts test --coverage --watchAll=false",
     "eject": "react-scripts eject",
     "deploy": "vercel --prod",
     "preview": "serve -s build",
     "lint": "eslint src --ext .js,.jsx",
-    "lint:fix": "eslint src --ext .js,.jsx --fix"
+    "lint:fix": "eslint src --ext .js,.jsx --fix",
+    "postbuild": "cp public/sw.js build/"
   },
   "eslintConfig": {
     "extends": [
