@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
-import init, { process_html_to_markdown } from 'rust_backend';
+import init, { process_html_to_markdown } from './rust_backend.js';
 import UrlInputPanel from './UrlInputPanel';
 import StatusDisplay from './StatusDisplay';
 import PreviewPanel from './PreviewPanel';
@@ -51,15 +51,19 @@ function App() {
 
   const processingPausedRef = useRef(isPaused);
   useEffect(() => { processingPausedRef.current = isPaused; }, [isPaused]);  useEffect(() => {
-    init()
-      .then(() => {
+    // Initialize WASM module
+    const loadWasm = async () => {
+      try {
+        await init(); // Initialize WASM
         setWasmInitialized(true);
         setStatus({ message: 'WASM initialized. Ready to process URLs.', type: 'success' });
-      })
-      .catch(err => {
+      } catch (err) {
         console.error("Error initializing WASM module:", err);
-        setStatus({ message: `Error initializing WASM: ${err}`, type: 'error' });
-      });
+        setStatus({ message: `Error initializing WASM: ${err.message}`, type: 'error' });
+      }
+    };
+    
+    loadWasm();
   }, []);
 
   const processSingleUrl = async (url, isFromFile = false) => {
@@ -79,10 +83,8 @@ function App() {
     try {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const htmlContent = await response.text();
-
-      setStatus({ message: `Processing: ${url} with WASM...`, type: 'info' });
-      const markdown = process_html_to_markdown(htmlContent, url);
+      const htmlContent = await response.text();      setStatus({ message: `Processing: ${url} with WASM...`, type: 'info' });
+      const markdown = window.process_html_to_markdown(htmlContent, url);
 
       if (!isFromFile) setMarkdownResult(markdown);
       // setStatus({ message: `Successfully processed: ${url}`, type: 'success' }); // Status will be set by calling function
