@@ -1,38 +1,260 @@
+body {
+  font-family: sans-serif;
+  margin: 0;
+  background-color: #f4f4f4;
+  color: #333;
+}
+
 .App {
-  text-align: center;
-}
-
-.App-logo {
-  height: 40vmin;
-  pointer-events: none;
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .App-logo {
-    animation: App-logo-spin infinite 20s linear;
-  }
+  padding: 20px;
 }
 
 .App-header {
   background-color: #282c34;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-size: calc(10px + 2vmin);
+  padding: 20px;
   color: white;
+  text-align: center;
+  margin-bottom: 20px;
 }
 
-.App-link {
-  color: #61dafb;
+.App-header h1 {
+  margin: 0;
+  font-size: 1.8em;
 }
 
-@keyframes App-logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+.status-display {
+  padding: 10px;
+  margin-bottom: 15px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+}
+.status-info {
+  background-color: #e7f3fe;
+  border-color: #d0eaff;
+  color: #31708f;
+}
+.status-success {
+  background-color: #dff0d8;
+  border-color: #d6e9c6;
+  color: #3c763d;
+}
+.status-error {
+  background-color: #f2dede;
+  border-color: #ebccd1;
+  color: #a94442;
+}
+
+.url-input-panel form {
+  display: flex;
+  margin-bottom: 20px;
+}
+.url-input-panel input[type="text"] {
+  flex-grow: 1;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px 0 0 4px;
+}
+.url-input-panel button {
+  padding: 10px 15px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 0 4px 4px 0;
+  cursor: pointer;
+}
+.url-input-panel button:disabled {
+  background-color: #aaa;
+}
+.url-input-panel button:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+
+.preview-panel textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  min-height: 200px;
+  font-family: monospace;
+}
+.preview-panel h3 {
+    margin-top: 0;
+}
+
+/* --- Appended New Styles from Previous Subtask --- */
+
+.url-input-panel .manual-url-form {
+  display: flex;
+  margin-bottom: 10px; /* Space between manual form and file input area */
+}
+
+.url-input-panel .file-input-area {
+  margin-bottom: 20px;
+  padding: 10px;
+  border: 1px dashed #ccc;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+}
+.url-input-panel .file-label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.9em;
+  color: #555;
+}
+.url-input-panel input[type="file"] {
+  display: block;
+  padding: 5px;
+}
+
+.controls-panel {
+  margin-bottom: 20px;
+  padding: 10px;
+  border: 1px solid #eee;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+}
+.controls-panel button { /* General style for buttons in this panel */
+  margin-right: 10px;
+  padding: 10px 15px;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+/* Specific styling for pause/resume button if needed, or it takes general .controls-panel button style */
+/* The App.js logic uses classNames for these now, but this is a fallback or addition */
+.controls-panel button:nth-child(1) { /* Start Processing File URLs */
+  background-color: #28a745; /* Green for start */
+}
+.controls-panel button:nth-child(1):hover:not(:disabled) {
+    background-color: #218838; /* Darker green */
+}
+
+/* Styling for the pause/resume button based on its dynamic class */
+.controls-panel .action-button.pause-button { background-color: #ffc107; color: #212529; }
+.controls-panel .action-button.pause-button:hover:not(:disabled) { background-color: #e0a800; }
+.controls-panel .action-button.resume-button { background-color: #28a745; color: white; } /* Same as start for resume */
+.controls-panel .action-button.resume-button:hover:not(:disabled) { background-color: #218838; }
+
+
+.controls-panel button:disabled {
+  background-color: #aaa;
+  cursor: not-allowed;
+}
+
+.controls-panel button:last-child { /* This will apply to the last button, which is Save */
+  margin-right: 0;
+}
+
+.preview-panel .preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.preview-panel .toggle-preview-btn {
+  padding: 8px 12px;
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.preview-panel .toggle-preview-btn:hover {
+  background-color: #5a6268;
+}
+.preview-panel .rendered-html-preview {
+  border: 1px solid #ccc;
+  padding: 15px;
+  border-radius: 4px;
+  background-color: #fff;
+  min-height: 200px;
+}
+.processed-list {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #f0f8ff;
+  border: 1px solid #b0e0e6;
+  border-radius: 4px;
+}
+.processed-list h3 {
+  margin-top: 0;
+}
+.processed-list ul {
+  list-style-type: none;
+  padding-left: 0;
+}
+.processed-list li {
+  padding: 5px 0;
+  border-bottom: 1px dotted #ccc;
+}
+.processed-list li:last-child {
+  border-bottom: none;
+}
+
+/* --- Appended New Styles for Save Controls --- */
+
+.controls-panel hr {
+  margin: 15px 0;
+  border: 0;
+  border-top: 1px solid #eee;
+}
+.controls-panel .save-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between; /* Pushes checkbox and button to opposite ends */
+  flex-wrap: wrap; /* Allow wrapping on small screens */
+}
+.controls-panel .checkbox-container {
+  display: flex;
+  align-items: center;
+  margin-right: 15px; /* Space between checkbox and save button */
+  margin-bottom: 10px; /* Spacing for wrapping */
+}
+.controls-panel .checkbox-container input[type="checkbox"] {
+  margin-right: 8px;
+  width: auto; /* Override global styles if any that might affect checkbox size */
+}
+.controls-panel .checkbox-container label {
+  font-size: 0.9em;
+  color: #333;
+  user-select: none; /* Improve UX for clicking label */
+}
+.controls-panel .save-button { /* This class is now used in ControlsPanel.js */
+  background-color: #007bff; /* Blue for save */
+  margin-bottom: 10px; /* Spacing for wrapping */
+  /* Other button styles (padding, color, border, radius, cursor) inherited from .controls-panel button */
+}
+.controls-panel .save-button:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+.controls-panel .action-button { /* General class for action buttons like Start/Pause/Resume */
+    margin-bottom: 10px; /* Ensures spacing when wrapped */
+}
+/* Ensure specificity for pause/resume colors if .action-button is also on save button by mistake */
+.controls-panel .action-button.pause-button { background-color: #ffc107; color: #212529; }
+.controls-panel .action-button.pause-button:hover:not(:disabled) { background-color: #e0a800; }
+.controls-panel .action-button.resume-button { background-color: #28a745; color: white; }
+.controls-panel .action-button.resume-button:hover:not(:disabled) { background-color: #218838; }
+
+
+.processed-list li.error-item {
+  color: #a94442;
+  background-color: #f2dede;
+  padding: 3px 6px;
+  border-radius: 3px;
+}
+.processed-list li.success-item {
+  color: #3c763d;
+  /* Optional: background-color: #dff0d8; */
 }
