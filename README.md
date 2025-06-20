@@ -1,49 +1,59 @@
-# URL to Markdown Converter (Electron Version)
+# URL to Markdown Converter
 
-A desktop application built with Electron that converts a list of URLs into Markdown format. It uses an external API service for the conversion.
+A desktop application that converts a list of URLs into Markdown format. Available in two versions:
 
-## Features
+## Main Application (Electron Version - Recommended)
 
-*   Load a list of URLs from a local `.txt` file.
-*   Manually input a single URL for conversion.
-*   Fetches markdown content from `https://urltomarkdown.herokuapp.com/`.
-*   Displays a live preview of the markdown for the current URL being processed.
-*   Handles API errors and includes a retry mechanism for transient issues.
-*   Pause and resume batch processing of URLs.
+Built with Electron, this is the main application with full features and local processing.
+
+### Features
+
+*   **Local processing** - no external API dependencies for privacy and reliability
+*   Uses Mozilla Readability for content extraction and Turndown for markdown conversion
+*   Real-time preview with toggle between raw markdown and rendered HTML view
+*   Responsive UI that adapts to screen size with side-by-side preview on wide screens
+*   Load a list of URLs from a local `.txt` file
+*   Manually input a single URL for conversion
+*   Handles network errors and includes retry mechanism for URL fetching
+*   Pause and resume batch processing of URLs
 *   Save converted markdown:
-    *   As a single merged file.
-    *   As individual files in a selected directory.
-*   User-friendly interface with status messages.
+    *   As a single merged file
+    *   As individual files in a selected directory
+*   User-friendly interface with status messages and progress tracking
+
+## Alternative Rust Version (Iced GUI)
+
+A basic implementation using Rust and the Iced GUI framework. Located in `src/main.rs`.
+
+**Note:** The Rust version provides basic functionality only. Use the Electron version for full features.
 
 ## Prerequisites
 
 *   [Node.js](https://nodejs.org/) (which includes npm)
+*   For Rust version: [Rust](https://rustup.rs/) toolchain
 
-## Installation
+## Installation & Running
 
-1.  **Clone the repository (or download the source code):**
-    ```bash
-    git clone https://github.com/your-username/url-to-markdown-electron.git
-    cd url-to-markdown-electron
-    ```
-    *(Note: Replace `your-username/url-to-markdown-electron` with the actual repository URL after project setup)*
+### Electron Version (Main App)
 
-2.  **Install dependencies:**
+1.  **Install dependencies:**
     ```bash
     npm install
     ```
 
-## Running the Application (Development Mode)
+2.  **Run the application:**
+    ```bash
+    npm start
+    ```
 
-To run the application in development mode:
+### Rust Version (Alternative)
 
-```bash
-npm start
-```
+1.  **Build and run:**
+    ```bash
+    cargo run
+    ```
 
-This will launch the Electron application.
-
-## How to Use
+## How to Use (Electron Version)
 
 1.  **Open URL File:** Click "Open URL File" to select a `.txt` file. Each URL should be on a new line.
 2.  **Start Processing File:** Once a file is loaded, click "Start Processing File".

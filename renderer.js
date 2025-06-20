@@ -173,30 +173,30 @@ async function processNextUrl() {
     const originalUrl = urlsToProcess[currentProcessingUrlIndex];
     setStatus(`Processing URL (${currentProcessingUrlIndex + 1}/${urlsToProcess.length}): ${originalUrl}`, 'status-info');
 
-    const apiUrl = `https://urltomarkdown.herokuapp.com/?url=${encodeURIComponent(originalUrl)}&title=true&links=true&clean=true`;
+    const options = {
+      title: true,
+      links: true,
+      clean: true
+    };
+
     let attempts = 0;
-    const maxRetries = 10;
+    const maxRetries = 3; // Reduced retries since we're not hitting rate limits
     let success = false;
 
     while (attempts < maxRetries && !success) {
       try {
-        const response = await fetch(apiUrl);
-        if (response.ok) {
-          const text = await response.text();
-          processedMarkdowns.push({ url: originalUrl, markdown: text });
+        const result = await window.electronAPI.convertUrlToMarkdown(originalUrl, options);
+        
+        if (result.success) {
+          processedMarkdowns.push({ url: originalUrl, markdown: result.markdown });
           success = true;
-        } else if (response.status === 429 || response.status >= 500) {
-          attempts++;
-          setStatus(`Error ${response.status} for ${originalUrl}. Attempt ${attempts}/${maxRetries}. Retrying...`, 'status-warning');
-          if (attempts < maxRetries) await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts) * 1000));
-          else throw new Error(`Failed after ${maxRetries} retries. Status: ${response.status}`);
         } else {
-           processedMarkdowns.push({ url: originalUrl, markdown: `Error processing ${originalUrl}: HTTP status ${response.status}` });
-           throw new Error(`HTTP error! status: ${response.status}`);
+          throw new Error(result.error || 'Unknown conversion error');
         }
       } catch (error) {
         attempts++;
-        setStatus(`Fetch error for ${originalUrl}: ${error.message}. Attempt ${attempts}/${maxRetries}.`, 'status-error');
+        setStatus(`Error processing ${originalUrl}: ${error.message}. Attempt ${attempts}/${maxRetries}.`, 'status-error');
+        
         if (attempts >= maxRetries) {
           // Check if already pushed an error markdown for this URL
           if (!processedMarkdowns.find(pm => pm.url === originalUrl && pm.markdown.startsWith("Error processing"))) {
@@ -204,8 +204,14 @@ async function processNextUrl() {
           }
           break;
         }
-        if (attempts < maxRetries) await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts) * 1000));
-      }    }
+        
+        if (attempts < maxRetries) {
+          // Short delay before retry (no need for exponential backoff for local processing)
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+    }
+    
     lastMarkdownPreview = processedMarkdowns.map(p => `## ${p.url}\n\n${p.markdown}`).join("\n\n---\n\n");
     updateUI(); // Update preview after each URL is processed to show the latest
 

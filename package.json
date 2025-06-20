@@ -1,7 +1,6 @@
-{
-  "name": "app",
+{  "name": "app",
   "version": "1.0.0",
-  "description": "Aplikasi desktop sederhana yang dibuat dengan Rust dan `iced` untuk mengubah daftar URL dari sebuah file teks menjadi satu dokumen Markdown tunggal. Setiap URL diproses dengan meminta konten Markdown dari layanan eksternal (`https://urltomarkdown.herokuapp.com/`).",
+  "description": "Aplikasi desktop yang dibuat dengan Electron untuk mengubah daftar URL dari sebuah file teks menjadi dokumen Markdown. Menggunakan implementasi lokal dengan @mozilla/readability dan turndown untuk konversi yang cepat dan privat.",
   "main": "main.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
@@ -21,5 +20,11 @@
   "homepage": "https://github.com/mlengse/crawler#readme",
   "devDependencies": {
     "electron": "^36.5.0"
+  },
+  "dependencies": {
+    "@mozilla/readability": "^0.6.0",
+    "html-entities": "^2.6.0",
+    "jsdom": "^26.1.0",
+    "turndown": "^7.2.0"
   }
 }
