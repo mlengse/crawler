@@ -215,6 +215,50 @@ main {
   color: #333;
   user-select: none; /* Improve UX for clicking label */
 }
+
+/* Retry Controls */
+.controls-panel .retry-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 10px 0;
+}
+
+.controls-panel .input-container {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.controls-panel .input-container label {
+  font-size: 0.9em;
+  color: #333;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.controls-panel .retry-input {
+  width: 60px;
+  padding: 6px 8px;
+  border: 2px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9em;
+  text-align: center;
+  transition: border-color 0.2s ease;
+}
+
+.controls-panel .retry-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+}
+
+.controls-panel .retry-input:disabled {
+  background-color: #f8f9fa;
+  color: #6c757d;
+  cursor: not-allowed;
+}
+
 .controls-panel .save-button { /* This class is now used in ControlsPanel.js */
   background-color: #007bff; /* Blue for save */
   margin-bottom: 10px; /* Spacing for wrapping */

@@ -2,15 +2,20 @@
 # Exclude files and directories from deployment
 
 # Rust build artifacts
-rust_backend/target/
-rust_backend/Cargo.lock
+target/
+Cargo.lock
 
 # Node modules (will be installed during build)
-client/node_modules/
+node_modules/
 node_modules/
 
-# Development files
-client/src/
+# Development files - Rust specific
+src/src/
+src/target/
+src/Cargo.toml
+src/Cargo.lock
+src/wasm-pack-v0.13.1-x86_64-pc-windows-msvc/
+src/wasm-pack.tar.gz
 *.md
 *.log
 .git/

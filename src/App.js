@@ -43,81 +43,102 @@ function App() {
 
   const [urlsFromFile, setUrlsFromFile] = useState([]);
   const [processedMarkdowns, setProcessedMarkdowns] = useState([]); // Array of {url, markdown, error?}
-  const [currentProcessingIndex, setCurrentProcessingIndex] = useState(0);
-  const [isProcessingMultiple, setIsProcessingMultiple] = useState(false);
+  const [currentProcessingIndex, setCurrentProcessingIndex] = useState(0);  const [isProcessingMultiple, setIsProcessingMultiple] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [saveMerged, setSaveMerged] = useState(true); // State for the checkbox
+  const [maxRetries, setMaxRetries] = useState(3); // State for max retries
 
   const processingPausedRef = useRef(isPaused);
   useEffect(() => { processingPausedRef.current = isPaused; }, [isPaused]);  useEffect(() => {
-    // Load WASM module using a more compatible approach
+    // Load WASM module using dynamic import
     const loadWasm = async () => {
       try {
         setStatus({ message: 'Loading WASM module...', type: 'info' });
         
-        // Load WASM binary directly
+        // Use dynamic import to load the WASM module
+        try {
+          // For production build, we need to ensure the WASM files are accessible
+          const wasmInit = await import(/* webpackIgnore: true */ `/rust_backend.js`);
+          
+          // Initialize the WASM module
+          if (typeof wasmInit.default === 'function') {
+            await wasmInit.default();
+            
+            // Check if our function is available and bind it
+            if (typeof wasmInit.process_html_to_markdown === 'function') {
+              window.process_html_to_markdown = wasmInit.process_html_to_markdown;
+              setWasmInitialized(true);
+              setStatus({ message: 'WASM initialized successfully. Ready to process URLs.', type: 'success' });
+              return;
+            }
+          }
+        } catch (dynamicImportError) {
+          console.warn('Dynamic import failed, trying alternative approach:', dynamicImportError);
+        }
+          // Fallback: Load the WASM file manually and create a simple wrapper
         const wasmUrl = `${process.env.PUBLIC_URL || ''}/rust_backend_bg.wasm`;
         const wasmResponse = await fetch(wasmUrl);
         if (!wasmResponse.ok) {
           throw new Error(`Failed to fetch WASM: ${wasmResponse.status}`);
-        }        const wasmBytes = await wasmResponse.arrayBuffer();        // Try to use the generated JavaScript bindings first
-        try {
-          // Load the rust_backend.js file manually
-          const jsResponse = await fetch(`${process.env.PUBLIC_URL || ''}/rust_backend.js`);
-          if (jsResponse.ok) {
-            const jsCode = await jsResponse.text();
-            // eslint-disable-next-line no-eval
-            eval(jsCode);
-            
-            // Check if wasm_bindgen is available and initialize
-            // eslint-disable-next-line no-undef
-            if (typeof wasm_bindgen !== 'undefined') {
-              // eslint-disable-next-line no-undef
-              await wasm_bindgen(`${process.env.PUBLIC_URL || ''}/rust_backend_bg.wasm`);
-              
-              // Check if our function is available
-              // eslint-disable-next-line no-undef
-              if (typeof process_html_to_markdown !== 'undefined') {
-                // eslint-disable-next-line no-undef
-                window.process_html_to_markdown = process_html_to_markdown;
-                setWasmInitialized(true);
-                setStatus({ message: 'WASM initialized with generated bindings. Ready to process URLs.', type: 'success' });
-                return;
-              }
-            }
-          }
-        } catch (bindingError) {
-          console.warn('Generated bindings failed, falling back to manual instantiation:', bindingError);
         }
         
-        // Fallback to manual WASM instantiation
-        const wasmModule = await WebAssembly.instantiate(wasmBytes, {
-          env: {
-            // Add any required imports here
-          }
-        });        
-        const wasmInstance = wasmModule.instance;
-        const wasmExports = wasmInstance.exports;
+        // eslint-disable-next-line no-unused-vars
+        const wasmBytes = await wasmResponse.arrayBuffer();
         
-        // Create proper wrapper for the WASM function
+        // For now, let's use a JavaScript fallback since the WASM loading is complex
+        // This will ensure the app works while we fix the WASM integration
+        console.warn('Using JavaScript fallback for HTML to Markdown conversion');
+        
         window.process_html_to_markdown = (html, url) => {
-          try {
-            // Check if the WASM function exists
-            if (typeof wasmExports.process_html_to_markdown === 'function') {
-              return wasmExports.process_html_to_markdown(html, url);
-            } else {
-              // Fallback if function not available
-              console.warn('WASM function not found, using fallback');
-              return `# Content from: ${url}\n\n${html.substring(0, 1000)}...`;
-            }
-          } catch (err) {
-            console.error('Error calling WASM function:', err);
-            return `# Content from: ${url}\n\n${html.substring(0, 1000)}...`;
-          }
+          // Enhanced JavaScript-based HTML to markdown conversion
+          let markdown = `# Content from: ${url}\n\n`;
+          
+          // Remove script and style tags
+          html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+          html = html.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+          
+          // Convert basic HTML tags to markdown
+          markdown += html
+            .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n')
+            .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n')
+            .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n')
+            .replace(/<h4[^>]*>(.*?)<\/h4>/gi, '#### $1\n\n')
+            .replace(/<h5[^>]*>(.*?)<\/h5>/gi, '##### $1\n\n')
+            .replace(/<h6[^>]*>(.*?)<\/h6>/gi, '###### $1\n\n')
+            .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<a[^>]*href=["']([^"']*)["'][^>]*>(.*?)<\/a>/gi, '[$2]($1)')
+            .replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**')
+            .replace(/<b[^>]*>(.*?)<\/b>/gi, '**$1**')
+            .replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*')
+            .replace(/<i[^>]*>(.*?)<\/i>/gi, '*$1*')
+            .replace(/<code[^>]*>(.*?)<\/code>/gi, '`$1`')
+            .replace(/<pre[^>]*>(.*?)<\/pre>/gi, '```\n$1\n```\n\n')
+            .replace(/<ul[^>]*>(.*?)<\/ul>/gi, (match, content) => {
+              return content.replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n') + '\n';
+            })
+            .replace(/<ol[^>]*>(.*?)<\/ol>/gi, (match, content) => {
+              let counter = 1;
+              return content.replace(/<li[^>]*>(.*?)<\/li>/gi, () => `${counter++}. $1\n`) + '\n';
+            })
+            .replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gi, '> $1\n\n')
+            .replace(/<img[^>]*src=["']([^"']*)["'][^>]*alt=["']([^"']*)["'][^>]*>/gi, '![$2]($1)')
+            .replace(/<img[^>]*src=["']([^"']*)["'][^>]*>/gi, '![]($1)')
+            .replace(/<[^>]*>/g, '') // Remove remaining HTML tags
+            .replace(/&nbsp;/g, ' ')
+            .replace(/&amp;/g, '&')
+            .replace(/&lt;/g, '<')
+            .replace(/&gt;/g, '>')
+            .replace(/&quot;/g, '"')
+            .replace(/&#39;/g, "'")
+            .replace(/\n\s*\n\s*\n/g, '\n\n') // Clean up multiple newlines
+            .trim();
+          
+          return markdown;
         };
         
         setWasmInitialized(true);
-        setStatus({ message: 'WASM initialized. Ready to process URLs.', type: 'success' });      } catch (err) {
+        setStatus({ message: 'Ready to process URLs (using JavaScript fallback).', type: 'warning' });} catch (err) {
         console.error("Error initializing WASM module:", err);
         // Fallback to JavaScript-based conversion
         window.process_html_to_markdown = (html, url) => {
@@ -152,9 +173,9 @@ function App() {
     
     loadWasm();
   }, []);
-
   // Enhanced error handling and retry mechanism (from renderer.js)
-  const processSingleUrl = async (url, isFromFile = false, maxRetries = 3) => {
+  const processSingleUrl = async (url, isFromFile = false, maxRetriesOverride = null) => {
+    const retriesToUse = maxRetriesOverride !== null ? maxRetriesOverride : maxRetries;
     if (!wasmInitialized) {
       setStatus({ message: 'WASM not initialized yet. Please wait.', type: 'error' });
       return null;
@@ -165,15 +186,13 @@ function App() {
     }
 
     setStatus({ message: `Fetching: ${url}...`, type: 'info' });
-    if (!isFromFile) setLastProcessedUrl(url);
-
-    let attempts = 0;
+    if (!isFromFile) setLastProcessedUrl(url);    let attempts = 0;
     let success = false;
 
-    while (attempts < maxRetries && !success) {
+    while (attempts < retriesToUse && !success) {
       try {
         attempts++;
-        setStatus({ message: `Processing: ${url} (attempt ${attempts}/${maxRetries})...`, type: 'info' });
+        setStatus({ message: `Processing: ${url} (attempt ${attempts}/${retriesToUse})...`, type: 'info' });
         
         const response = await fetch(url);
         if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -196,18 +215,17 @@ function App() {
         } else if (error.message.includes("HTTP error! status: 403")) {
           errorMessage = "Access forbidden (403)";
         } else if (error.message.includes("HTTP error! status: 500")) {
-          errorMessage = "Server error (500)";
-        }
+          errorMessage = "Server error (500)";        }
         
-        if (attempts >= maxRetries) {
+        if (attempts >= retriesToUse) {
           if (!isFromFile) setStatus({ message: `Error processing ${url}: ${errorMessage}`, type: 'error' });
           return { url, markdown: `Error: ${errorMessage}`, error: errorMessage };
         }
         
         // Add delay between retries (from renderer.js pattern)
-        if (attempts < maxRetries) {
-          setStatus({ message: `Retrying ${url} in 2 seconds... (${attempts}/${maxRetries})`, type: 'warning' });
-          await new Promise(resolve => setTimeout(resolve, 2000));
+        if (attempts < retriesToUse) {
+          setStatus({ message: `Retrying ${url} in ${Math.pow(2, attempts)} seconds... (${attempts}/${retriesToUse})`, type: 'warning' });
+          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempts) * 1000));
         }
       }
     }
@@ -278,9 +296,15 @@ function App() {
     } else {
       setStatus({ message, type: 'success' });
     }  };
-
   const handleToggleSaveMerged = () => {
     setSaveMerged(prev => !prev);
+  };
+
+  const handleMaxRetriesChange = (newMaxRetries) => {
+    const value = parseInt(newMaxRetries, 10);
+    if (value >= 1 && value <= 10) {
+      setMaxRetries(value);
+    }
   };
   const handleSaveMarkdown = () => {
     const successfulMarkdowns = processedMarkdowns.filter(item => item && !item.error && item.markdown);
@@ -381,8 +405,7 @@ function App() {
             onProcessUrl={handleProcessManualUrl}
             onProcessFile={handleProcessFile}
             disabled={!wasmInitialized || (isProcessingMultiple && !isPaused)}
-          />
-          <ControlsPanel
+          />          <ControlsPanel
               isProcessing={isProcessingMultiple && urlsFromFile.length > 0 && currentProcessingIndex < urlsFromFile.length}
               isPaused={isPaused}
               onStartProcessingAll={startProcessingAll}
@@ -392,6 +415,8 @@ function App() {
               saveMerged={saveMerged}
               onToggleSaveMerged={handleToggleSaveMerged}
               hasProcessedContent={hasAnyProcessedContent()}
+              maxRetries={maxRetries}
+              onMaxRetriesChange={handleMaxRetriesChange}
           />
           {processedMarkdowns.length > 0 && urlsFromFile.length > 0 && (
             <div className="processed-list">

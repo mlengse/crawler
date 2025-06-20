@@ -9,8 +9,10 @@ function ControlsPanel({
   onSaveMarkdown,
   saveMerged,
   onToggleSaveMerged,
-  hasProcessedContent
-}) {  return (
+  hasProcessedContent,
+  maxRetries,
+  onMaxRetriesChange
+}) {return (
     <div className="controls-panel">
       <button
         onClick={onStartProcessingAll}
@@ -27,6 +29,23 @@ function ControlsPanel({
       >
         {isPaused ? 'Resume' : 'Pause'}
       </button>
+        <hr />
+      
+      <div className="retry-controls">
+        <div className="input-container">
+          <label htmlFor="maxRetriesInput">Max Retries per URL:</label>
+          <input
+            type="number"
+            id="maxRetriesInput"
+            min="1"
+            max="10"
+            value={maxRetries}
+            onChange={(e) => onMaxRetriesChange(e.target.value)}
+            disabled={isProcessing}
+            className="retry-input"
+          />
+        </div>
+      </div>
       
       <hr />
       
