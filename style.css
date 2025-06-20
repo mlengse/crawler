@@ -1,0 +1,218 @@
+/* General Body and Container */
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  margin: 0;
+  padding: 20px;
+  background-color: #f0f2f5; /* Lighter grey */
+  color: #333;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.container {
+  background-color: #ffffff;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 700px; /* Max width for content */
+  box-sizing: border-box;
+}
+
+h1 {
+  color: #1c1e21; /* Darker heading */
+  text-align: center;
+  margin-bottom: 25px;
+  font-size: 1.8em;
+}
+
+hr {
+  border: 0;
+  height: 1px;
+  background: #e0e0e0; /* Lighter separator */
+  margin: 25px 0;
+}
+
+/* Buttons */
+button {
+  background-color: #007bff; /* Primary blue */
+  color: white;
+  cursor: pointer;
+  transition: background-color 0.2s ease-in-out, opacity 0.2s ease-in-out;
+  padding: 10px 15px;
+  border-radius: 6px;
+  border: none; /* Remove default border */
+  font-size: 0.95em;
+  margin-bottom: 10px;
+  display: block; /* Default to block, can be overridden by flex */
+  width: 100%; /* Default to full width within its container */
+  box-sizing: border-box;
+}
+
+button:hover:not(:disabled) {
+  background-color: #0056b3; /* Darker blue on hover */
+}
+
+button:disabled {
+  background-color: #c0c0c0; /* Greyed out */
+  color: #666666;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+button.processing {
+  /* Example: could add a spinner or change text */
+  /* background-color: #ffc107; /* Example processing color */
+  /* color: #333; */
+}
+
+
+#pauseResumeBtn {
+  background-color: #ffc107; /* Yellow for pause */
+  color: #212529;
+}
+#pauseResumeBtn:hover:not(:disabled) {
+  background-color: #e0a800;
+}
+
+#pauseResumeBtn.resume { /* Specific style when it's a "Resume" button */
+  background-color: #28a745; /* Green for resume */
+  color: white;
+}
+#pauseResumeBtn.resume:hover:not(:disabled) {
+  background-color: #1e7e34;
+}
+
+
+/* Inputs and Textarea */
+input[type="text"], textarea {
+  margin-bottom: 10px;
+  display: block;
+  padding: 10px;
+  border-radius: 6px;
+  border: 1px solid #ccd0d5; /* Softer border */
+  box-sizing: border-box;
+  width: 100%;
+  font-size: 0.95em;
+}
+
+input[type="text"]:focus, textarea:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 0 0.2rem rgba(0,123,255,.25);
+  outline: none;
+}
+
+textarea#markdownPreview {
+  background-color: #f8f9fa; /* Slightly off-white for preview */
+  font-family: monospace;
+  min-height: 150px; /* Ensure it's a decent size */
+  resize: vertical; /* Allow vertical resize */
+  overflow-y: auto; /* Ensure scrollability */
+}
+
+/* Checkbox and Label */
+.checkbox-container {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+input[type="checkbox"] {
+  display: inline-block;
+  margin-right: 8px; /* Space between checkbox and label */
+  vertical-align: middle;
+  width: auto; /* Override block styling */
+  height: 1.2em; /* Make checkbox a bit larger */
+  width: 1.2em;
+}
+
+label[for="saveMergedCheckbox"] {
+  display: inline-block;
+  vertical-align: middle;
+  font-size: 0.9em;
+  color: #555;
+}
+
+/* File Path and Status Messages */
+#filePath {
+  margin-top: 5px;
+  margin-bottom: 15px;
+  font-style: italic;
+  color: #55595c; /* Subdued text color */
+  font-size: 0.9em;
+  word-break: break-all; /* Prevent long paths from breaking layout */
+  padding: 8px;
+  background-color: #e9ecef;
+  border-radius: 4px;
+}
+
+#statusMessage {
+  margin-top: 15px;
+  padding: 12px 15px;
+  border-left-width: 5px;
+  border-left-style: solid;
+  border-radius: 4px;
+  font-size: 0.95em;
+  background-color: #e9ecef; /* Default background */
+  border-color: #007bff; /* Default (info) */
+  color: #495057; /* Default text */
+}
+
+#statusMessage.status-success {
+  background-color: #d4edda;
+  border-color: #28a745; /* Green for success */
+  color: #155724;
+}
+
+#statusMessage.status-error {
+  background-color: #f8d7da;
+  border-color: #dc3545; /* Red for error */
+  color: #721c24;
+}
+
+#statusMessage.status-warning {
+  background-color: #fff3cd;
+  border-color: #ffc107; /* Yellow for warning/info */
+  color: #856404;
+}
+
+
+/* Flexbox for specific rows */
+.input-group {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.input-group input[type="text"] {
+  flex-grow: 1;
+  margin-bottom: 0; /* Remove bottom margin as it's handled by input-group */
+  margin-right: 10px; /* Space between input and button */
+}
+
+.input-group button {
+  width: auto; /* Allow button to size to its content */
+  flex-shrink: 0; /* Prevent button from shrinking */
+  margin-bottom: 0; /* Remove bottom margin */
+}
+
+/* Specific button widths if needed */
+#openFileBtn, #startProcessingBtn, #saveMarkdownBtn {
+    /* Full width by default is fine here, or set specific widths */
+}
+
+#processManualUrlBtn {
+    /* width: auto; /* Let it size based on text if it's in an input-group */
+}
+
+/* Ensure block display for elements not in flex containers if they were changed */
+#openFileBtn, #filePath, #startProcessingBtn, #pauseResumeBtn, #saveMarkdownBtn, #markdownPreview, #statusMessage, .checkbox-container {
+    display: block; /* Reaffirm block if not part of a specific row layout like input-group */
+    width: 100%; /* Ensure full width for these main controls */
+}
+
+.checkbox-container label, .checkbox-container input {
+    display: inline-block; /* Keep these inline within their container */
+    width: auto;
+}

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>URL to Markdown Converter</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body>
+    <div class="container">
+      <h1>URL to Markdown Converter</h1>
+
+      <button id="openFileBtn">Open URL File</button>
+      <p id="filePath">No file selected.</p>
+
+      <button id="startProcessingBtn">Start Processing File</button>
+
+      <hr>
+
+      <div class="input-group">
+        <input type="text" id="manualUrlInput" placeholder="Enter URL manually">
+        <button id="processManualUrlBtn">Process Manual URL</button>
+      </div>
+
+      <hr>
+
+      <button id="pauseResumeBtn">Pause</button>
+
+      <div class="checkbox-container">
+        <input type="checkbox" id="saveMergedCheckbox" checked>
+        <label for="saveMergedCheckbox">Save merged into single file</label>
+      </div>
+
+      <button id="saveMarkdownBtn">Save Markdown</button>
+
+      <hr>
+
+      <textarea id="markdownPreview" rows="10" readonly placeholder="Markdown preview..."></textarea>
+
+      <p id="statusMessage" class="status-info">Welcome!</p> <!-- Default class -->
+    </div> <!-- /container -->
+    <script src="./renderer.js"></script>
+  </body>
+</html>
