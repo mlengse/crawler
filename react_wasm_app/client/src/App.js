@@ -84,7 +84,7 @@ function App() {
       const response = await fetch(url);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       const htmlContent = await response.text();      setStatus({ message: `Processing: ${url} with WASM...`, type: 'info' });
-      const markdown = window.process_html_to_markdown(htmlContent, url);
+      const markdown = process_html_to_markdown(htmlContent, url);
 
       if (!isFromFile) setMarkdownResult(markdown);
       // setStatus({ message: `Successfully processed: ${url}`, type: 'success' }); // Status will be set by calling function
