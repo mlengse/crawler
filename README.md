@@ -8,6 +8,7 @@ Alat berbasis web yang powerful untuk mengkonversi halaman web ke format Markdow
 - **Pemrosesan Batch**: Upload file teks dengan multiple URL dan proses semuanya sekaligus
 - **Mekanisme Retry**: Percobaan ulang yang dapat dikonfigurasi (1-10) untuk permintaan yang gagal
 - **Jeda/Lanjutkan**: Kontrol pemrosesan batch dengan fungsi jeda dan lanjutkan
+- **Service Worker untuk CORS**: Mengatasi masalah CORS dengan Service Worker yang otomatis menggunakan proxy
 - **Opsi Simpan Multiple**: 
   - Simpan sebagai file individual per URL
   - Simpan sebagai satu file gabungan

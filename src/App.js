@@ -251,9 +251,25 @@ function App() {
                 } else {
                   throw new Error(`Proxy HTTP error! status: ${proxyResponse.status}`);
                 }
-                } catch (proxyError) {
-                console.error(`CORS proxy attempt failed for ${url}:`, proxyError);
-                errorMessage = "Masalah CORS atau jaringan - coba URL lain atau gunakan proxy";
+                } catch (proxyError) {                console.error(`CORS proxy attempt failed for ${url}:`, proxyError);
+                errorMessage = "Masalah CORS atau jaringan - menggunakan Service Worker sebagai fallback";
+                
+                // Try Service Worker approach which should handle CORS automatically
+                try {
+                  console.log(`Using Service Worker to handle CORS for ${url}`);
+                  const swResponse = await fetch(url);
+                  
+                  if (swResponse.ok) {
+                    const htmlContent = await swResponse.text();
+                    const markdown = window.process_html_to_markdown(htmlContent, url);
+                    success = true;
+                    return { url, markdown, usedServiceWorker: true };
+                  } else {
+                    throw new Error(`Service Worker fetch failed with status: ${swResponse.status}`);
+                  }
+                } catch (swError) {                console.error(`Service Worker approach failed for ${url}:`, swError);
+                  errorMessage = "Masalah CORS atau jaringan - coba URL lain atau gunakan proxy";
+                }
                 }
             }
           }
