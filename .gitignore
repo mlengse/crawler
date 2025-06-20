@@ -16,3 +16,6 @@ release/
 Thumbs.db
 
 target/
+react_wasm_app/rust_backend/wasm-pack.tar.gz
+react_wasm_app/rust_backend/wasm-pack-v0.13.1-x86_64-pc-windows-msvc/wasm-pack.exe
+react_wasm_app/rust_backend/wasm-pack-v0.13.1-x86_64-pc-windows-msvc/
