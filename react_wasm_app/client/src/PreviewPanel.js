@@ -1,15 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { marked } from 'marked'; // Import marked
+import { marked } from 'marked';
 
 function PreviewPanel({ markdownContent, lastProcessedUrl }) {
-  const [showRendered, setShowRendered] = useState(false);
+  const [isRenderedMode, setIsRenderedMode] = useState(false);
   const [renderedHtml, setRenderedHtml] = useState('');
 
   useEffect(() => {
-    if (markdownContent && showRendered) {
+    if (markdownContent && isRenderedMode) {
       try {
-        // Ensure that `markdownContent` is a string.
-        // The WASM function might return something else on error, or it might be initially undefined.
         if (typeof markdownContent === 'string') {
           setRenderedHtml(marked.parse(markdownContent));
         } else {
@@ -20,24 +18,39 @@ function PreviewPanel({ markdownContent, lastProcessedUrl }) {
         setRenderedHtml(`<p style="color:red;">Error rendering preview: ${err.message}</p>`);
       }
     }
-  }, [markdownContent, showRendered]);
+  }, [markdownContent, isRenderedMode]);
+
+  const togglePreviewMode = () => {
+    setIsRenderedMode(!isRenderedMode);
+  };
 
   return (
     <div className="preview-panel">
       <div className="preview-header">
-        <h3>Preview for: {lastProcessedUrl || "No URL processed"}</h3>
-        <button onClick={() => setShowRendered(!showRendered)} className="toggle-preview-btn">
-          {showRendered ? 'Raw Markdown' : 'Rendered HTML'}
-        </button>
+        <h3>Last Crawled URL Preview</h3>
+        <div className="preview-controls">
+          <span className="url-display">
+            {lastProcessedUrl || "No URL processed yet"}
+          </span>
+          <button 
+            onClick={togglePreviewMode} 
+            className={`toggle-preview-btn ${isRenderedMode ? 'rendered' : ''}`}
+          >
+            {isRenderedMode ? '🖥️ Rendered' : '📝 Raw'}
+          </button>
+        </div>
       </div>
-      {showRendered ? (
-        <div className="rendered-html-preview" dangerouslySetInnerHTML={{ __html: renderedHtml }} />
-      ) : (
-        <textarea
-          value={markdownContent}
+      
+      {isRenderedMode ? (
+        <div 
+          className="rendered-html-preview" 
+          dangerouslySetInnerHTML={{ __html: renderedHtml || '<p style="color: #666; font-style: italic;">No content to preview</p>' }} 
+        />
+      ) : (        <textarea
+          value={markdownContent || ''}
           readOnly
-          placeholder="Markdown preview will appear here..."
-          rows={15}
+          placeholder="Markdown preview will appear here after processing URLs..."
+          rows={20}
         />
       )}
     </div>

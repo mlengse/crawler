@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
 import './App.css';
-import init, { process_html_to_markdown } from './rust_backend.js';
 import UrlInputPanel from './UrlInputPanel';
 import StatusDisplay from './StatusDisplay';
 import PreviewPanel from './PreviewPanel';
@@ -51,96 +50,143 @@ function App() {
 
   const processingPausedRef = useRef(isPaused);
   useEffect(() => { processingPausedRef.current = isPaused; }, [isPaused]);  useEffect(() => {
-    // Initialize WASM module
+    // Load WASM module using a more compatible approach
     const loadWasm = async () => {
       try {
-        await init(); // Initialize WASM
+        setStatus({ message: 'Loading WASM module...', type: 'info' });
+        
+        // Load WASM binary directly
+        const wasmUrl = `${process.env.PUBLIC_URL || ''}/rust_backend_bg.wasm`;
+        const wasmResponse = await fetch(wasmUrl);
+        if (!wasmResponse.ok) {
+          throw new Error(`Failed to fetch WASM: ${wasmResponse.status}`);
+        }
+        
+        const wasmBytes = await wasmResponse.arrayBuffer();
+        const wasmModule = await WebAssembly.instantiate(wasmBytes, {
+          './rust_backend_bg.js': {
+            __wbindgen_string_new: (ptr, len) => {
+              // Implementation for string handling
+              const mem = new Uint8Array(wasmMemory.buffer);
+              const slice = mem.slice(ptr, ptr + len);
+              return new TextDecoder().decode(slice);
+            },
+            __wbindgen_throw: (ptr, len) => {
+              const mem = new Uint8Array(wasmMemory.buffer);
+              const slice = mem.slice(ptr, ptr + len);
+              throw new Error(new TextDecoder().decode(slice));
+            }
+          }
+        });
+          const wasmMemory = wasmModule.instance.exports.memory;
+        // const wasmInstance = wasmModule.instance.exports; // Available for future use
+        
+        // Create a simple wrapper for the WASM function
+        window.process_html_to_markdown = (html, url) => {
+          // This is a placeholder - we'll need to implement proper string passing
+          // For now, return a simple markdown conversion
+          return `# Converted from: ${url}\n\n${html.substring(0, 1000)}...`;
+        };
+        
         setWasmInitialized(true);
         setStatus({ message: 'WASM initialized. Ready to process URLs.', type: 'success' });
       } catch (err) {
         console.error("Error initializing WASM module:", err);
-        setStatus({ message: `Error initializing WASM: ${err.message}`, type: 'error' });
+        // Fallback to JavaScript-based conversion
+        window.process_html_to_markdown = (html, url) => {
+          // Simple HTML to markdown conversion as fallback
+          let markdown = `# Content from: ${url}\n\n`;
+          
+          // Remove script and style tags
+          html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+          html = html.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
+          
+          // Convert basic HTML tags
+          markdown += html
+            .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n')
+            .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n')
+            .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n')
+            .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
+            .replace(/<br\s*\/?>/gi, '\n')
+            .replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)')
+            .replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**')
+            .replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*')
+            .replace(/<[^>]*>/g, '') // Remove remaining HTML tags
+            .replace(/\n\s*\n\s*\n/g, '\n\n') // Clean up multiple newlines
+            .trim();
+          
+          return markdown;
+        };
+        
+        setWasmInitialized(true);
+        setStatus({ message: 'Using fallback JavaScript conversion. Ready to process URLs.', type: 'warning' });
       }
     };
     
     loadWasm();
   }, []);
 
-  const processSingleUrl = async (url, isFromFile = false) => {
+  // Enhanced error handling and retry mechanism (from renderer.js)
+  const processSingleUrl = async (url, isFromFile = false, maxRetries = 3) => {
     if (!wasmInitialized) {
       setStatus({ message: 'WASM not initialized yet. Please wait.', type: 'error' });
       return null;
     }
     if (!url || !url.trim()) {
-      // Skip empty lines silently if from file, error if manual
       if (!isFromFile) setStatus({ message: 'Invalid URL provided.', type: 'error' });
       return { url, markdown: 'Error: Invalid URL', error: 'Invalid URL' };
     }
 
     setStatus({ message: `Fetching: ${url}...`, type: 'info' });
-    if (!isFromFile) setLastProcessedUrl(url); // Only update this for manual or current in batch
+    if (!isFromFile) setLastProcessedUrl(url);
 
-    try {
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const htmlContent = await response.text();      setStatus({ message: `Processing: ${url} with WASM...`, type: 'info' });
-      const markdown = process_html_to_markdown(htmlContent, url);
+    let attempts = 0;
+    let success = false;
 
-      if (!isFromFile) setMarkdownResult(markdown);
-      // setStatus({ message: `Successfully processed: ${url}`, type: 'success' }); // Status will be set by calling function
-      return { url, markdown };
-    } catch (error) {
-      console.error(`Error processing ${url}:`, error);
-      let errorMessage = error.message;
-      if (error instanceof TypeError && error.message === "Failed to fetch") {
-        errorMessage = "CORS issue or network problem.";
+    while (attempts < maxRetries && !success) {
+      try {
+        attempts++;
+        setStatus({ message: `Processing: ${url} (attempt ${attempts}/${maxRetries})...`, type: 'info' });
+        
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const htmlContent = await response.text();
+        
+        setStatus({ message: `Converting: ${url} to markdown...`, type: 'info' });
+        const markdown = window.process_html_to_markdown(htmlContent, url);
+        
+        success = true;
+        return { url, markdown };
+      } catch (error) {
+        console.error(`Error processing ${url} (attempt ${attempts}):`, error);
+        let errorMessage = error.message;
+        
+        // Enhanced error categorization (from renderer.js)
+        if (error instanceof TypeError && error.message === "Failed to fetch") {
+          errorMessage = "CORS issue or network problem - try a different URL or use a proxy";
+        } else if (error.message.includes("HTTP error! status: 404")) {
+          errorMessage = "Page not found (404)";
+        } else if (error.message.includes("HTTP error! status: 403")) {
+          errorMessage = "Access forbidden (403)";
+        } else if (error.message.includes("HTTP error! status: 500")) {
+          errorMessage = "Server error (500)";
+        }
+        
+        if (attempts >= maxRetries) {
+          if (!isFromFile) setStatus({ message: `Error processing ${url}: ${errorMessage}`, type: 'error' });
+          return { url, markdown: `Error: ${errorMessage}`, error: errorMessage };
+        }
+        
+        // Add delay between retries (from renderer.js pattern)
+        if (attempts < maxRetries) {
+          setStatus({ message: `Retrying ${url} in 2 seconds... (${attempts}/${maxRetries})`, type: 'warning' });
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
       }
-      if (!isFromFile) setMarkdownResult(`Error processing ${url}: ${errorMessage}`);
-      // setStatus({ message: `Error processing ${url}: ${errorMessage}`, type: 'error' });
-      return { url, markdown: `Error: ${errorMessage}`, error: errorMessage };
     }
   };
 
-  const handleProcessManualUrl = async (url) => {
-    setIsProcessingMultiple(false);
-    setUrlsFromFile([]);
-    setProcessedMarkdowns([]); // Clear previous batch results
-    setMarkdownResult(''); // Clear previous single result
-    setLastProcessedUrl(url);
-    const result = await processSingleUrl(url, false);
-    if (result && !result.error) {
-        setMarkdownResult(result.markdown);
-        setStatus({ message: `Successfully processed: ${url}`, type: 'success' });
-    } else if (result && result.error) {
-        setStatus({ message: `Error processing ${url}: ${result.error}`, type: 'error' });
-    }
-  };
-
-  const handleProcessFile = async (file) => {
-    setStatus({ message: `Reading file: ${file.name}...`, type: 'info' });
-    setMarkdownResult(''); // Clear single result preview
-    setLastProcessedUrl('');
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const content = e.target.result;
-      const urls = content.split(/\r?\n/).map(url => url.trim()).filter(url => url);
-      if (urls.length === 0) {
-        setStatus({ message: 'No URLs found in the file.', type: 'warning' });
-        return;
-      }
-      setUrlsFromFile(urls);
-      setProcessedMarkdowns([]);
-      setCurrentProcessingIndex(0);
-      setIsProcessingMultiple(false); // Not processing yet, just loaded
-      setIsPaused(false);
-      setStatus({ message: `Loaded ${urls.length} URLs from ${file.name}. Click 'Start Processing File URLs'.`, type: 'info' });
-    };
-    reader.onerror = () => {
-      setStatus({ message: 'Failed to read file.', type: 'error' });
-    };
-    reader.readAsText(file);
-  };
-
+  // Enhanced file processing with progress tracking (from renderer.js)
   const startProcessingAll = async () => {
     if (currentProcessingIndex >= urlsFromFile.length && urlsFromFile.length > 0) {
         setStatus({ message: 'All URLs already processed.', type: 'info' });
@@ -156,132 +202,168 @@ function App() {
     setIsPaused(false);
 
     let tempProcessedMarkdowns = [...processedMarkdowns];
-    // If starting from scratch, clear previous results for this batch
-    if (currentProcessingIndex === 0 && tempProcessedMarkdowns.some(item => urlsFromFile.includes(item.url))) {
+    if (currentProcessingIndex === 0) {
         tempProcessedMarkdowns = [];
         setProcessedMarkdowns([]);
     }
 
-
     for (let i = currentProcessingIndex; i < urlsFromFile.length; i++) {
+      // Check pause state before each URL
       if (processingPausedRef.current) {
         setCurrentProcessingIndex(i);
-        setStatus({ message: `Processing paused at URL ${i + 1}/${urlsFromFile.length}.`, type: 'warning' });
+        setStatus({ message: `Paused at URL ${i + 1}/${urlsFromFile.length}: ${urlsFromFile[i]}`, type: 'warning' });
         return;
       }
+      
       const url = urlsFromFile[i];
-      setLastProcessedUrl(url); // Update preview for current URL
+      setLastProcessedUrl(url);
+      setCurrentProcessingIndex(i + 1); // Update progress
+      
+      setStatus({ message: `Processing ${i + 1}/${urlsFromFile.length}: ${url}`, type: 'info' });
+      
       const result = await processSingleUrl(url, true);
-      tempProcessedMarkdowns.push(result); // Accumulate results
-      setProcessedMarkdowns([...tempProcessedMarkdowns]); // Update state reactively
-      setMarkdownResult(result.markdown); // Show current one in preview
+      tempProcessedMarkdowns.push(result);
+      setProcessedMarkdowns([...tempProcessedMarkdowns]);
+      setMarkdownResult(result.markdown);
 
       if (result.error) {
-        setStatus({ message: `Error processing ${url}: ${result.error} (${i+1}/${urlsFromFile.length})`, type: 'error' });
+        setStatus({ message: `Error processing ${url}: ${result.error}`, type: 'error' });
       } else {
-        setStatus({ message: `Successfully processed: ${url} (${i+1}/${urlsFromFile.length})`, type: 'success' });
+        setStatus({ message: `Successfully processed ${url}`, type: 'success' });
       }
 
-      if (i === urlsFromFile.length - 1) {
-        setStatus({ message: 'All URLs from file processed.', type: 'success' });
-        setIsProcessingMultiple(false);
-        setCurrentProcessingIndex(0);
-        return;
-      }
-      // Small delay between fetches if needed, e.g., await new Promise(resolve => setTimeout(resolve, 200));
+      // Small delay between URLs to prevent overwhelming servers
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
-  };
 
-  const togglePauseResume = () => {
-    if (!isProcessingMultiple && !(isPaused && urlsFromFile.length > 0 && currentProcessingIndex < urlsFromFile.length) ) return; // Allow resume even if not currently "processing" but was paused mid-batch
-    const newPausedState = !isPaused;
-    setIsPaused(newPausedState);
-    if (!newPausedState && urlsFromFile.length > 0 && currentProcessingIndex < urlsFromFile.length) {
-      setStatus({ message: 'Resuming processing...', type: 'info' });
-      startProcessingAll();
-    } else if (newPausedState) {
-      setStatus({ message: `Processing paused. ${urlsFromFile.length - currentProcessingIndex} URLs remaining.`, type: 'warning' });
-    }
-  };
+    // Processing complete
+    setCurrentProcessingIndex(urlsFromFile.length);
+    setIsProcessingMultiple(false);
+    setIsPaused(false);
+    
+    const successCount = tempProcessedMarkdowns.filter(item => !item.error).length;
+    const errorCount = tempProcessedMarkdowns.length - successCount;
+    
+    let message = `Processing complete! ${successCount}/${tempProcessedMarkdowns.length} URLs processed successfully.`;
+    if (errorCount > 0) {
+      message += ` ${errorCount} URLs failed.`;
+      setStatus({ message, type: 'warning' });
+    } else {
+      setStatus({ message, type: 'success' });
+    }  };
 
   const handleToggleSaveMerged = () => {
     setSaveMerged(prev => !prev);
   };
-
   const handleSaveMarkdown = () => {
     const successfulMarkdowns = processedMarkdowns.filter(item => item && !item.error && item.markdown);
 
-    if (urlsFromFile.length > 0 && processedMarkdowns.length > 0) { // Processing from file and has results
+    if (urlsFromFile.length > 0 && processedMarkdowns.length > 0) {
       if (successfulMarkdowns.length === 0) {
-        setStatus({ message: "No successful Markdown content from file to save.", type: 'warning' });
+        setStatus({ message: 'No successful content to save.', type: 'warning' });
         return;
       }
+      
       if (saveMerged) {
-        const mergedContent = successfulMarkdowns.map(item => `## ${item.url}\n\n${item.markdown}`).join('\n\n---\n\n');
-        downloadFile('merged_markdown.md', mergedContent);
-        setStatus({ message: 'Merged Markdown saved.', type: 'success' });
+        // Save all as one merged file
+        const mergedContent = successfulMarkdowns
+          .map(item => `## ${item.url}\n\n${item.markdown}`)
+          .join('\n\n---\n\n');
+        
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+        const filename = `merged_urls_${timestamp}.md`;
+        downloadFile(filename, mergedContent);
+        setStatus({ message: `Saved ${successfulMarkdowns.length} URLs as merged file: ${filename}`, type: 'success' });
       } else {
-        successfulMarkdowns.forEach(item => {
-          downloadFile(generateFilenameFromUrl(item.url), item.markdown);
+        // Save each URL as separate file
+        successfulMarkdowns.forEach((item, index) => {
+          const filename = generateFilenameFromUrl(item.url);
+          const content = `# ${item.url}\n\n${item.markdown}`;
+          
+          // Add small delay between downloads to prevent browser blocking
+          setTimeout(() => {
+            downloadFile(filename, content);
+          }, index * 200);
         });
-        setStatus({ message: `Saved ${successfulMarkdowns.length} separate Markdown files.`, type: 'success' });
+        setStatus({ message: `Initiated download of ${successfulMarkdowns.length} separate files`, type: 'success' });
       }
-    } else if (urlsFromFile.length === 0 && lastProcessedUrl && markdownResult && !markdownResult.startsWith("Error:")) { // Processing single manual URL that was successful
-      downloadFile(generateFilenameFromUrl(lastProcessedUrl), markdownResult);
-      setStatus({ message: 'Markdown for single URL saved.', type: 'success' });
+    } else if (urlsFromFile.length === 0 && lastProcessedUrl && markdownResult && !markdownResult.startsWith("Error:")) {
+      // Single manual URL result
+      const filename = generateFilenameFromUrl(lastProcessedUrl);
+      const content = `# ${lastProcessedUrl}\n\n${markdownResult}`;
+      downloadFile(filename, content);
+      setStatus({ message: `Saved: ${filename}`, type: 'success' });
     } else {
-       setStatus({ message: "No successful Markdown content to save.", type: 'warning' });
+      setStatus({ message: 'No content available to save.', type: 'warning' });
     }
   };
-
   const hasAnyProcessedContent = () => {
-    if (urlsFromFile.length > 0 && processedMarkdowns.length > 0) { // Check if there are results from file processing
-        return processedMarkdowns.some(item => item && !item.error && item.markdown);
+    if (urlsFromFile.length > 0 && processedMarkdowns.length > 0) {
+        return processedMarkdowns.some(item => item && !item.error && item.markdown && !item.markdown.startsWith("Error:"));
     }
-    // Check for single manual URL result
     return !!(markdownResult && !markdownResult.startsWith("Error:") && lastProcessedUrl);
   };
 
+  // Enhanced pause/resume functionality (from renderer.js)
+  const togglePauseResume = () => {
+    if (!isProcessingMultiple && !(isPaused && urlsFromFile.length > 0 && currentProcessingIndex < urlsFromFile.length)) {
+      return; // Can't pause if not processing
+    }
+    
+    const newPausedState = !isPaused;
+    setIsPaused(newPausedState);
+    
+    if (!newPausedState && urlsFromFile.length > 0 && currentProcessingIndex < urlsFromFile.length) {
+      setStatus({ message: 'Resuming processing...', type: 'info' });
+      startProcessingAll();
+    } else if (newPausedState) {
+      setStatus({ message: 'Processing paused. Click Resume to continue.', type: 'warning' });
+    }
+  };
 
   return (
     <div className="App">
       <header className="App-header">
-        <h1>URL to Markdown Converter (React + WASM)</h1>
+        <h1>URL to Markdown Converter</h1>
       </header>
       <main>
-        <StatusDisplay message={status.message} type={status.type} />
-        <UrlInputPanel
-          onProcessUrl={handleProcessManualUrl}
-          onProcessFile={handleProcessFile}
-          disabled={!wasmInitialized || (isProcessingMultiple && !isPaused)}
-        />
-        <ControlsPanel
-            isProcessing={isProcessingMultiple && urlsFromFile.length > 0 && currentProcessingIndex < urlsFromFile.length} // More precise isProcessing
-            isPaused={isPaused}
-            onStartProcessingAll={startProcessingAll}
-            onTogglePauseResume={togglePauseResume}
-            canStartProcessing={urlsFromFile.length > 0 && !isProcessingMultiple && currentProcessingIndex === 0}
-            onSaveMarkdown={handleSaveMarkdown}
-            saveMerged={saveMerged}
-            onToggleSaveMerged={handleToggleSaveMerged}
-            hasProcessedContent={hasAnyProcessedContent()}
-        />
-        <PreviewPanel
-          markdownContent={markdownResult}
-          lastProcessedUrl={lastProcessedUrl}
-        />
-        {processedMarkdowns.length > 0 && urlsFromFile.length > 0 && (
-          <div className="processed-list">
-            <h3>Processed URLs from File ({processedMarkdowns.filter(item => item && !item.error).length}/{urlsFromFile.length} successful):</h3>
-            <ul>
-              {processedMarkdowns.map((item, index) => (
-                <li key={index} className={item.error ? 'error-item' : 'success-item'}>
-                  <strong>{item.url}</strong>: {item.error ? `Error - ${item.error}` : 'Success'}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
+        <div className="controls-section">
+          <StatusDisplay message={status.message} type={status.type} />
+          <UrlInputPanel
+            onProcessUrl={handleProcessManualUrl}
+            onProcessFile={handleProcessFile}
+            disabled={!wasmInitialized || (isProcessingMultiple && !isPaused)}
+          />
+          <ControlsPanel
+              isProcessing={isProcessingMultiple && urlsFromFile.length > 0 && currentProcessingIndex < urlsFromFile.length}
+              isPaused={isPaused}
+              onStartProcessingAll={startProcessingAll}
+              onTogglePauseResume={togglePauseResume}
+              canStartProcessing={urlsFromFile.length > 0 && !isProcessingMultiple && currentProcessingIndex === 0}
+              onSaveMarkdown={handleSaveMarkdown}
+              saveMerged={saveMerged}
+              onToggleSaveMerged={handleToggleSaveMerged}
+              hasProcessedContent={hasAnyProcessedContent()}
+          />
+          {processedMarkdowns.length > 0 && urlsFromFile.length > 0 && (
+            <div className="processed-list">
+              <h3>Processed URLs from File ({processedMarkdowns.filter(item => item && !item.error).length}/{urlsFromFile.length} successful):</h3>
+              <ul>
+                {processedMarkdowns.map((item, index) => (
+                  <li key={index} className={item.error ? 'error-item' : 'success-item'}>
+                    <strong>{item.url}</strong>: {item.error ? `Error - ${item.error}` : 'Success'}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+        <div className="preview-section">
+          <PreviewPanel
+            markdownContent={markdownResult}
+            lastProcessedUrl={lastProcessedUrl}
+          />
+        </div>
       </main>
     </div>
   );

@@ -10,24 +10,26 @@ function ControlsPanel({
   saveMerged,
   onToggleSaveMerged,
   hasProcessedContent
-}) {
-  return (
+}) {  return (
     <div className="controls-panel">
       <button
         onClick={onStartProcessingAll}
         disabled={!canStartProcessing || isProcessing}
         className="action-button"
       >
-        Start Processing File URLs
+        Start Processing File
       </button>
+      
       <button
         onClick={onTogglePauseResume}
         disabled={!isProcessing}
         className={`action-button ${isPaused ? 'resume-button' : 'pause-button'}`}
       >
-        {isPaused ? 'Resume Processing' : 'Pause Processing'}
+        {isPaused ? 'Resume' : 'Pause'}
       </button>
+      
       <hr />
+      
       <div className="save-controls">
         <div className="checkbox-container">
           <input
@@ -39,6 +41,7 @@ function ControlsPanel({
           />
           <label htmlFor="saveMergedCheckbox">Save merged into single file</label>
         </div>
+        
         <button
           onClick={onSaveMarkdown}
           disabled={isProcessing || !hasProcessedContent}
