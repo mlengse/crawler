@@ -30,23 +30,21 @@ function UrlInputPanel({ onProcessUrl, onProcessFile, disabled }) {
   };
   return (
     <div className="url-input-panel">
-      <form onSubmit={handleManualSubmit} className="manual-url-form">
-        <input
+      <form onSubmit={handleManualSubmit} className="manual-url-form">        <input
           type="text"
           value={manualUrl}
           onChange={(e) => setManualUrl(e.target.value)}
-          placeholder="Enter URL manually"
+          placeholder="Masukkan URL secara manual"
           disabled={disabled}
         />
         <button type="submit" disabled={disabled || !manualUrl.trim()}>
-          Process Manual URL
+          Proses URL Manual
         </button>
       </form>
       
-      <hr />
-        <div className="file-input-area">
+      <hr />        <div className="file-input-area">
         <label htmlFor="urlFile" className="file-label">
-          Select a .txt file with URLs (one per line):
+          Pilih file .txt dengan URL (satu per baris):
         </label>
         <input
           type="file"
@@ -56,7 +54,7 @@ function UrlInputPanel({ onProcessUrl, onProcessFile, disabled }) {
           disabled={disabled}
         />
         {selectedFileName && (
-          <p className="selected-file">Selected: {selectedFileName}</p>
+          <p className="selected-file">Dipilih: {selectedFileName}</p>
         )}
       </div>
     </div>

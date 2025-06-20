@@ -11,11 +11,11 @@ function PreviewPanel({ markdownContent, lastProcessedUrl }) {
         if (typeof markdownContent === 'string') {
           setRenderedHtml(marked.parse(markdownContent));
         } else {
-          setRenderedHtml('<p style="color:red;">Error: Invalid content for preview.</p>');
+          setRenderedHtml('<p style="color:red;">Error: Konten tidak valid untuk pratinjau.</p>');
         }
       } catch (err) {
         console.error("Error parsing markdown:", err);
-        setRenderedHtml(`<p style="color:red;">Error rendering preview: ${err.message}</p>`);
+        setRenderedHtml(`<p style="color:red;">Error rendering pratinjau: ${err.message}</p>`);
       }
     }
   }, [markdownContent, isRenderedMode]);
@@ -26,17 +26,16 @@ function PreviewPanel({ markdownContent, lastProcessedUrl }) {
 
   return (
     <div className="preview-panel">
-      <div className="preview-header">
-        <h3>Last Crawled URL Preview</h3>
+      <div className="preview-header">        <h3>Pratinjau URL Terakhir Diproses</h3>
         <div className="preview-controls">
           <span className="url-display">
-            {lastProcessedUrl || "No URL processed yet"}
+            {lastProcessedUrl || "Belum ada URL yang diproses"}
           </span>
           <button 
             onClick={togglePreviewMode} 
             className={`toggle-preview-btn ${isRenderedMode ? 'rendered' : ''}`}
           >
-            {isRenderedMode ? '🖥️ Rendered' : '📝 Raw'}
+            {isRenderedMode ? '🖥️ Dirender' : '📝 Mentah'}
           </button>
         </div>
       </div>
@@ -44,12 +43,12 @@ function PreviewPanel({ markdownContent, lastProcessedUrl }) {
       {isRenderedMode ? (
         <div 
           className="rendered-html-preview" 
-          dangerouslySetInnerHTML={{ __html: renderedHtml || '<p style="color: #666; font-style: italic;">No content to preview</p>' }} 
+          dangerouslySetInnerHTML={{ __html: renderedHtml || '<p style="color: #666; font-style: italic;">Tidak ada konten untuk ditampilkan</p>' }} 
         />
       ) : (        <textarea
           value={markdownContent || ''}
           readOnly
-          placeholder="Markdown preview will appear here after processing URLs..."
+          placeholder="Pratinjau Markdown akan muncul di sini setelah memproses URL..."
           rows={20}
         />
       )}

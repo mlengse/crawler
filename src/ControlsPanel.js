@@ -13,13 +13,12 @@ function ControlsPanel({
   maxRetries,
   onMaxRetriesChange
 }) {return (
-    <div className="controls-panel">
-      <button
+    <div className="controls-panel">      <button
         onClick={onStartProcessingAll}
         disabled={!canStartProcessing || isProcessing}
         className="action-button"
       >
-        Start Processing File
+        Mulai Memproses Semua
       </button>
       
       <button
@@ -27,13 +26,12 @@ function ControlsPanel({
         disabled={!isProcessing}
         className={`action-button ${isPaused ? 'resume-button' : 'pause-button'}`}
       >
-        {isPaused ? 'Resume' : 'Pause'}
+        {isPaused ? 'Lanjutkan' : 'Jeda'}
       </button>
         <hr />
       
-      <div className="retry-controls">
-        <div className="input-container">
-          <label htmlFor="maxRetriesInput">Max Retries per URL:</label>
+      <div className="retry-controls">        <div className="input-container">
+          <label htmlFor="maxRetriesInput">Percobaan Ulang per URL:</label>
           <input
             type="number"
             id="maxRetriesInput"
@@ -49,8 +47,7 @@ function ControlsPanel({
       
       <hr />
       
-      <div className="save-controls">
-        <div className="checkbox-container">
+      <div className="save-controls">        <div className="checkbox-container">
           <input
             type="checkbox"
             id="saveMergedCheckbox"
@@ -58,7 +55,7 @@ function ControlsPanel({
             onChange={onToggleSaveMerged}
             disabled={isProcessing}
           />
-          <label htmlFor="saveMergedCheckbox">Save merged into single file</label>
+          <label htmlFor="saveMergedCheckbox">Simpan gabungan dalam satu file</label>
         </div>
         
         <button
@@ -66,7 +63,7 @@ function ControlsPanel({
           disabled={isProcessing || !hasProcessedContent}
           className="save-button"
         >
-          Save Markdown
+          Simpan Markdown
         </button>
       </div>
     </div>
