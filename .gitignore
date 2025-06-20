@@ -1,1 +1,16 @@
-/target
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+*.env
+
+# Electron
+.electron/
+dist/
+release/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
