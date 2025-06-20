@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron')
 const path = require('path')
 const fs = require('fs').promises; // Use promise-based fs
+const URLToMarkdownConverter = require('./urlToMarkdownConverter');
 
 function createWindow () {
   const mainWindow = new BrowserWindow({
@@ -98,4 +99,20 @@ ipcMain.handle('save-separate-dialog', async (event, filesToSaveArray) => {
     }
   }
   return { canceled: false, directoryPath: directoryPath, errors: errors };
+});
+
+// Handle 'convert-url-to-markdown'
+ipcMain.handle('convert-url-to-markdown', async (event, url, options) => {
+  const converter = new URLToMarkdownConverter();
+  try {
+    const result = await converter.convertUrlToMarkdown(url, options);
+    return result;
+  } catch (error) {
+    return {
+      success: false,
+      error: error.message,
+      markdown: `Error processing ${url}: ${error.message}`,
+      url: url
+    };
+  }
 });
