@@ -63,7 +63,8 @@ impl App {
                 encoded_url
             );
 
-            Command::perform(                async move {
+            Command::perform(                
+                async move {
                     const MAX_RETRIES: u32 = 10;
                     const BASE_RETRY_DELAY_MS: u64 = 5000;
                     let client = reqwest::Client::new();
