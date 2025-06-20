@@ -10,12 +10,19 @@ function UrlInputPanel({ onProcessUrl, onProcessFile, disabled }) {
       onProcessUrl(manualUrl);
     }
   };
-
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
       setSelectedFileName(file.name);
-      onProcessFile(file);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target.result;
+        const urls = text.split('\n')
+          .map(url => url.trim())
+          .filter(url => url.length > 0);
+        onProcessFile(urls);
+      };
+      reader.readAsText(file);
       e.target.value = null; // Reset file input
     } else {
       setSelectedFileName('');

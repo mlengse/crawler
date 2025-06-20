@@ -291,12 +291,33 @@ function App() {
       // Single manual URL result
       const filename = generateFilenameFromUrl(lastProcessedUrl);
       const content = `# ${lastProcessedUrl}\n\n${markdownResult}`;
-      downloadFile(filename, content);
-      setStatus({ message: `Saved: ${filename}`, type: 'success' });
+      downloadFile(filename, content);      setStatus({ message: `Saved: ${filename}`, type: 'success' });
     } else {
       setStatus({ message: 'No content available to save.', type: 'warning' });
     }
   };
+
+  // Handle manual URL processing
+  const handleProcessManualUrl = async (url) => {
+    const result = await processSingleUrl(url, false);
+    if (result) {
+      setMarkdownResult(result.markdown);
+      if (result.error) {
+        setStatus({ message: `Error: ${result.error}`, type: 'error' });
+      } else {
+        setStatus({ message: `Successfully processed: ${url}`, type: 'success' });
+      }
+    }
+  };
+
+  // Handle file processing
+  const handleProcessFile = (urls) => {
+    setUrlsFromFile(urls);
+    setProcessedMarkdowns([]);
+    setCurrentProcessingIndex(0);
+    setStatus({ message: `Loaded ${urls.length} URLs from file. Click "Start Processing All" to begin.`, type: 'info' });
+  };
+
   const hasAnyProcessedContent = () => {
     if (urlsFromFile.length > 0 && processedMarkdowns.length > 0) {
         return processedMarkdowns.some(item => item && !item.error && item.markdown && !item.markdown.startsWith("Error:"));
@@ -368,4 +389,5 @@ function App() {
     </div>
   );
 }
+
 export default App;

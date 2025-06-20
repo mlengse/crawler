@@ -9,7 +9,10 @@ js-sys = "0.3"
 web-sys = { version = "0.3", features = [
   "console",
 ] }
-getrandom = { version = "0.2.12", features = ["js"], default-features = false }
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+crate-type = ["cdylib"]
+
+[profile.release]
+opt-level = "s"
+lto = true
