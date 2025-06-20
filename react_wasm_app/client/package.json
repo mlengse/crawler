@@ -13,10 +13,10 @@
     "react-scripts": "5.0.1",
     "rust_backend": "file:../rust_backend/pkg",
     "web-vitals": "^2.1.4"
-  },
-  "scripts": {
+  },  "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
+    "build:vercel": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject"
   },
