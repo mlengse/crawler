@@ -26,7 +26,7 @@ function generateFilenameFromUrl(urlStr) {
     let pathname = url.pathname;
     pathname = pathname.replace(/^\/+|\/+$/g, ''); // remove leading/trailing slashes
     let filename = `${hostname}_${pathname}`;
-    filename = filename.replace(/[\/\?%*:|"<>]/g, '_').replace(/__+/g, '_').replace(/^_|_$/g, '');
+    filename = filename.replace(/[/?%*:|"<>]/g, '_').replace(/__+/g, '_').replace(/^_|_$/g, '');
     if (filename.length > 200) filename = filename.substring(0, 200);
     return (filename || "untitled") + ".md";
   } catch (e) {
@@ -50,9 +50,7 @@ function App() {
   const [saveMerged, setSaveMerged] = useState(true); // State for the checkbox
 
   const processingPausedRef = useRef(isPaused);
-  useEffect(() => { processingPausedRef.current = isPaused; }, [isPaused]);
-
-  useEffect(() => {
+  useEffect(() => { processingPausedRef.current = isPaused; }, [isPaused]);  useEffect(() => {
     init()
       .then(() => {
         setWasmInitialized(true);

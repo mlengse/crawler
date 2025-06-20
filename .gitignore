@@ -19,3 +19,13 @@ target/
 react_wasm_app/rust_backend/wasm-pack.tar.gz
 react_wasm_app/rust_backend/wasm-pack-v0.13.1-x86_64-pc-windows-msvc/wasm-pack.exe
 react_wasm_app/rust_backend/wasm-pack-v0.13.1-x86_64-pc-windows-msvc/
+
+# Rust
+Cargo.lock
+Cargo.toml
+Cargo.toml.orig
+Cargo.toml.lock
+Cargo.toml.orig.lock
+Cargo.toml.bak
+# Build artifacts
+target/
