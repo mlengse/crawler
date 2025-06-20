@@ -1,44 +1,44 @@
-# URL to Markdown Converter
+# Konverter URL ke Markdown
 
-A powerful web-based tool that converts web pages to Markdown format. Built with React and featuring Rust/WASM backend for enhanced performance.
+Alat berbasis web yang powerful untuk mengkonversi halaman web ke format Markdown. Dibuat dengan React dan dilengkapi backend Rust/WASM untuk performa yang ditingkatkan.
 
-## 🌟 Features
+## 🌟 Fitur
 
-- **Single URL Processing**: Convert individual web pages to Markdown instantly
-- **Batch Processing**: Upload a text file with multiple URLs and process them all at once
-- **Retry Mechanism**: Configurable retry attempts (1-10) for failed requests
-- **Pause/Resume**: Control batch processing with pause and resume functionality
-- **Multiple Save Options**: 
-  - Save as individual files per URL
-  - Save as a single merged file
-- **Real-time Preview**: See the converted Markdown in real-time
-- **Progress Tracking**: Monitor the progress of batch processing
-- **Error Handling**: Comprehensive error reporting and categorization
-- **Responsive Design**: Works on desktop and mobile devices
+- **Pemrosesan URL Tunggal**: Konversi halaman web individual ke Markdown secara instan
+- **Pemrosesan Batch**: Upload file teks dengan multiple URL dan proses semuanya sekaligus
+- **Mekanisme Retry**: Percobaan ulang yang dapat dikonfigurasi (1-10) untuk permintaan yang gagal
+- **Jeda/Lanjutkan**: Kontrol pemrosesan batch dengan fungsi jeda dan lanjutkan
+- **Opsi Simpan Multiple**: 
+  - Simpan sebagai file individual per URL
+  - Simpan sebagai satu file gabungan
+- **Preview Real-time**: Lihat Markdown yang dikonversi secara real-time
+- **Pelacakan Progress**: Monitor kemajuan pemrosesan batch
+- **Penanganan Error**: Pelaporan dan kategorisasi error yang komprehensif
+- **Desain Responsif**: Bekerja di desktop dan perangkat mobile
 
-## 🚀 Live Demo
+## 🚀 Demo Langsung
 
-Visit the live application: [URL to Markdown Converter](https://client-12lqqviai-anjang-kusuma-netras-projects.vercel.app)
+Kunjungi aplikasi live: [Konverter URL ke Markdown](https://client-12lqqviai-anjang-kusuma-netras-projects.vercel.app)
 
-## 🛠️ Technologies Used
+## 🛠️ Teknologi yang Digunakan
 
 - **Frontend**: React 19.1.0
-- **Styling**: CSS3 with modern flexbox layouts
-- **Backend**: Rust compiled to WebAssembly (WASM)
+- **Styling**: CSS3 dengan layout flexbox modern
+- **Backend**: Rust dikompilasi ke WebAssembly (WASM)
 - **Build Tool**: Create React App
 - **Deployment**: Vercel
 - **Testing**: Jest, React Testing Library
 
-## 📦 Installation
+## 📦 Instalasi
 
-### Prerequisites
+### Prasyarat
 
-- Node.js (version 18 or higher)
-- npm or yarn package manager
+- Node.js (versi 18 atau lebih tinggi)
+- npm atau yarn package manager
 
-### Local Development
+### Development Lokal
 
-1. **Clone the repository**
+1. **Clone repository**
    ```bash
    git clone <repository-url>
    cd crawler
@@ -49,48 +49,48 @@ Visit the live application: [URL to Markdown Converter](https://client-12lqqviai
    npm install
    ```
 
-3. **Start the development server**
+3. **Jalankan development server**
    ```bash
    npm start
    ```
 
-4. **Open your browser**
-   Navigate to `http://localhost:3000`
+4. **Buka browser**
+   Navigasi ke `http://localhost:3000`
 
-### Building for Production
+### Build untuk Production
 
 ```bash
 npm run build
 ```
 
-This creates a `build` folder with optimized production files.
+Ini akan membuat folder `build` dengan file production yang dioptimasi.
 
-## 🎯 Usage
+## 🎯 Cara Penggunaan
 
-### Single URL Processing
+### Pemrosesan URL Tunggal
 
-1. Enter a URL in the input field
-2. Click "Process URL"
-3. View the converted Markdown in the preview panel
-4. Click "Save Markdown" to download the result
+1. Masukkan URL di field input
+2. Klik "Proses URL"
+3. Lihat Markdown yang dikonversi di panel preview
+4. Klik "Simpan Markdown" untuk download hasilnya
 
-### Batch Processing
+### Pemrosesan Batch
 
-1. Create a text file with one URL per line
-2. Click "Choose File" and select your URL list
-3. Configure max retries if needed (default: 3)
-4. Click "Start Processing File"
-5. Monitor progress and use pause/resume as needed
-6. Choose save options:
-   - **Merged**: All URLs in one file
-   - **Separate**: Individual file per URL
+1. Buat file teks dengan satu URL per baris
+2. Klik "Pilih File" dan pilih daftar URL Anda
+3. Konfigurasi max retries jika diperlukan (default: 3)
+4. Klik "Mulai Memproses File"
+5. Monitor progress dan gunakan jeda/lanjutkan sesuai kebutuhan
+6. Pilih opsi simpan:
+   - **Gabungan**: Semua URL dalam satu file
+   - **Terpisah**: File individual per URL
 
-### Configuration Options
+### Opsi Konfigurasi
 
-- **Max Retries**: Set retry attempts for failed URLs (1-10)
-- **Save Mode**: Choose between merged or separate file downloads
+- **Max Retries**: Atur percobaan ulang untuk URL yang gagal (1-10)
+- **Mode Simpan**: Pilih antara download file gabungan atau terpisah
 
-## 🏗️ Project Structure
+## 🏗️ Struktur Project
 
 ```
 crawler/
@@ -98,26 +98,26 @@ crawler/
 │   ├── index.html
 │   ├── favicon.ico
 │   ├── rust_backend.js      # WASM bindings
-│   └── rust_backend_bg.wasm # Compiled Rust code
+│   └── rust_backend_bg.wasm # Kode Rust yang dikompilasi
 ├── src/
-│   ├── App.js              # Main application component
-│   ├── App.css             # Application styles
-│   ├── UrlInputPanel.js    # URL input component
-│   ├── StatusDisplay.js    # Status message component
-│   ├── PreviewPanel.js     # Markdown preview component
-│   ├── ControlsPanel.js    # Control buttons component
-│   └── index.js            # React entry point
-├── build/                  # Production build output
-├── package.json            # Dependencies and scripts
-├── vercel.json            # Vercel deployment config
-└── README.md              # This file
+│   ├── App.js              # Komponen aplikasi utama
+│   ├── App.css             # Style aplikasi
+│   ├── UrlInputPanel.js    # Komponen input URL
+│   ├── StatusDisplay.js    # Komponen pesan status
+│   ├── PreviewPanel.js     # Komponen preview Markdown
+│   ├── ControlsPanel.js    # Komponen tombol kontrol
+│   └── index.js            # Entry point React
+├── build/                  # Output build production
+├── package.json            # Dependencies dan scripts
+├── vercel.json            # Config deployment Vercel
+└── README.md              # File ini
 ```
 
-## 🔧 Configuration
+## 🔧 Konfigurasi
 
-### Vercel Deployment
+### Deployment Vercel
 
-The project includes a `vercel.json` configuration file for seamless deployment:
+Project ini menyertakan file konfigurasi `vercel.json` untuk deployment yang seamless:
 
 ```json
 {
@@ -135,34 +135,34 @@ The project includes a `vercel.json` configuration file for seamless deployment:
 
 ### Environment Variables
 
-No environment variables are required for basic functionality.
+Tidak ada environment variables yang diperlukan untuk fungsionalitas dasar.
 
-## 🎨 Customization
+## 🎨 Kustomisasi
 
 ### Styling
 
-Modify `src/App.css` to customize the appearance. The design follows modern UI principles with:
-- Clean, minimalist interface
-- Responsive design for all screen sizes
-- Consistent color scheme and typography
-- Accessible form controls
+Modifikasi `src/App.css` untuk menyesuaikan tampilan. Desain mengikuti prinsip UI modern dengan:
+- Interface yang bersih dan minimalis
+- Desain responsif untuk semua ukuran layar
+- Skema warna dan tipografi yang konsisten
+- Kontrol form yang dapat diakses
 
-### Adding Features
+### Menambahkan Fitur
 
-The component-based architecture makes it easy to add new features:
-- Create new components in the `src/` directory
-- Import and use them in `App.js`
-- Add corresponding styles in `App.css`
+Arsitektur berbasis komponen memudahkan penambahan fitur baru:
+- Buat komponen baru di direktori `src/`
+- Import dan gunakan di `App.js`
+- Tambahkan style yang sesuai di `App.css`
 
 ## 🧪 Testing
 
-Run the test suite:
+Jalankan test suite:
 
 ```bash
 npm test
 ```
 
-Run tests in CI mode:
+Jalankan test dalam mode CI:
 
 ```bash
 npm test -- --coverage --watchAll=false
@@ -170,14 +170,14 @@ npm test -- --coverage --watchAll=false
 
 ## 🚀 Deployment
 
-### Vercel (Recommended)
+### Vercel (Direkomendasikan)
 
 1. **Install Vercel CLI**
    ```bash
    npm install -g vercel
    ```
 
-2. **Login to Vercel**
+2. **Login ke Vercel**
    ```bash
    vercel login
    ```
@@ -187,46 +187,46 @@ npm test -- --coverage --watchAll=false
    vercel --prod
    ```
 
-### Other Platforms
+### Platform Lain
 
-The built application can be deployed to any static hosting service:
+Aplikasi yang telah di-build dapat di-deploy ke layanan static hosting mana pun:
 - Netlify
 - GitHub Pages
 - AWS S3 + CloudFront
 - Google Cloud Storage
 
-## 🐛 Known Issues
+## 🐛 Isu yang Diketahui
 
-- WASM loading may fall back to JavaScript implementation in some browsers
-- Large batch processing may be limited by browser memory
-- Some websites may block cross-origin requests (CORS)
+- Loading WASM mungkin fallback ke implementasi JavaScript di beberapa browser
+- Pemrosesan batch besar mungkin dibatasi oleh memori browser
+- Beberapa website mungkin memblokir cross-origin requests (CORS)
 
-## 🤝 Contributing
+## 🤝 Kontribusi
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+1. Fork repository
+2. Buat feature branch (`git checkout -b feature/fitur-keren`)
+3. Commit perubahan Anda (`git commit -m 'Tambah fitur keren'`)
+4. Push ke branch (`git push origin feature/fitur-keren`)
+5. Buka Pull Request
 
-## 📝 License
+## 📝 Lisensi
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+Project ini dilisensikan di bawah MIT License - lihat file [LICENSE](LICENSE) untuk detail.
 
-## 🙏 Acknowledgments
+## 🙏 Pengakuan
 
-- React team for the amazing framework
-- Rust and WebAssembly communities
-- Vercel for seamless deployment
-- All contributors and users
+- Tim React untuk framework yang luar biasa
+- Komunitas Rust dan WebAssembly
+- Vercel untuk deployment yang seamless
+- Semua kontributor dan pengguna
 
-## 📞 Support
+## 📞 Dukungan
 
-If you encounter any issues or have questions:
-1. Check the [Issues](../../issues) section
-2. Create a new issue with detailed information
-3. Include steps to reproduce any bugs
+Jika Anda mengalami masalah atau memiliki pertanyaan:
+1. Periksa bagian [Issues](../../issues)
+2. Buat issue baru dengan informasi detail
+3. Sertakan langkah-langkah untuk mereproduksi bug
 
 ---
 
-**Built with ❤️ using React and Rust/WASM**
+**Dibuat dengan ❤️ menggunakan React dan Rust/WASM**

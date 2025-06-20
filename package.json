@@ -13,15 +13,14 @@
     "rust",
     "batch-processing"
   ],
-  "author": "Anjang Kusuma Netra",
+  "author": "mlengse",
   "license": "MIT",
-  "homepage": "https://client-12lqqviai-anjang-kusuma-netras-projects.vercel.app",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/username/url-to-markdown-converter.git"
+    "url": "git+https://github.com/mlengse/crawler.git"
   },
   "bugs": {
-    "url": "https://github.com/username/url-to-markdown-converter/issues"
+    "url": "https://github.com/mlengse/crawler/issues"
   },"dependencies": {
     "@testing-library/dom": "^10.4.0",
     "@testing-library/jest-dom": "^6.6.3",
