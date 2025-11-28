@@ -57,7 +57,7 @@ function ControlsPanel({
             type="number"
             id="maxCrawlLinksInput"
             min="1"
-            max="1000"
+            max="5000"
             value={maxCrawlLinks}
             onChange={(e) => onMaxCrawlLinksChange(e.target.value)}
             disabled={isProcessing}
@@ -70,7 +70,7 @@ function ControlsPanel({
             type="number"
             id="maxCrawlDepthInput"
             min="1"
-            max="5"
+            max="10"
             value={maxCrawlDepth}
             onChange={(e) => onMaxCrawlDepthChange(e.target.value)}
             disabled={isProcessing}
