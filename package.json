@@ -32,8 +32,10 @@
     "web-vitals": "^2.1.4"
   },  "scripts": {
     "start": "react-scripts start",
+    "prebuild": "npm run build:wasm",
     "build": "react-scripts build && cp public/sw.js build/",
-    "build:vercel": "react-scripts build && cp public/sw.js build/",
+    "build:wasm": "cd src && wasm-pack build --target web --out-dir ../public",
+    "build:vercel": "npm run build:wasm && react-scripts build && cp public/sw.js build/",
     "test": "react-scripts test",
     "test:coverage": "react-scripts test --coverage --watchAll=false",
     "eject": "react-scripts eject",
