@@ -47,6 +47,10 @@ function App() {
   const [isPaused, setIsPaused] = useState(false);
   const [saveMerged, setSaveMerged] = useState(true); // State for the checkbox
   const [maxRetries, setMaxRetries] = useState(3); // State for max retries
+  const [maxCrawlLinks, setMaxCrawlLinks] = useState(100); // State for max crawl links
+  const [discoveredPaths, setDiscoveredPaths] = useState([]); // Discovered paths from crawl
+  const [selectedPaths, setSelectedPaths] = useState([]); // User-selected paths to process
+  const [showPathSelection, setShowPathSelection] = useState(false); // Show path selection UI
 
   const processingPausedRef = useRef(isPaused);
   useEffect(() => { processingPausedRef.current = isPaused; }, [isPaused]);  useEffect(() => {
@@ -398,6 +402,13 @@ function App() {
       setMaxRetries(value);
     }
   };
+
+  const handleMaxCrawlLinksChange = (newMaxCrawlLinks) => {
+    const value = parseInt(newMaxCrawlLinks, 10);
+    if (value >= 1 && value <= 1000) {
+      setMaxCrawlLinks(value);
+    }
+  };
   const handleSaveMarkdown = () => {
     const successfulMarkdowns = processedMarkdowns.filter(item => item && !item.error && item.markdown);
 
@@ -440,16 +451,168 @@ function App() {
     }
   };
 
-  // Handle manual URL processing
+  // Handle manual URL processing (Process Only - no crawl)
   const handleProcessManualUrl = async (url) => {
-    const result = await processSingleUrl(url, false);
+    const normalized = !/^https?:\/\//i.test(url) ? `https://${url}` : url;
+    const result = await processSingleUrl(normalized, false);
     if (result) {
       setMarkdownResult(result.markdown);
       if (result.error) {
         setStatus({ message: `Error: ${result.error}`, type: 'error' });
       } else {
-        setStatus({ message: `Berhasil memproses: ${url}`, type: 'success' });
+        setStatus({ message: `Berhasil memproses: ${normalized}`, type: 'success' });
       }
+    }
+  };
+
+  // Handle Crawl & Process
+  const handleCrawlAndProcess = async (url) => {
+    try {
+      let normalized = url;
+      if (!/^https?:\/\//i.test(url)) normalized = `https://${url}`;
+      const urlObj = new URL(normalized);
+      
+      setStatus({ message: `Mencari sub-path di ${urlObj.origin}...`, type: 'info' });
+      const discovered = await crawlUrls(urlObj.origin);
+
+      if (!discovered || !discovered.urls || discovered.urls.length === 0) {
+        setStatus({ message: `Tidak menemukan sub-path. Memproses root: ${normalized}`, type: 'info' });
+        const result = await processSingleUrl(normalized, false);
+        if (result) {
+          setMarkdownResult(result.markdown);
+          if (result.error) {
+            setStatus({ message: `Error: ${result.error}`, type: 'error' });
+          } else {
+            setStatus({ message: `Berhasil memproses: ${normalized}`, type: 'success' });
+          }
+        }
+        return;
+      }
+
+      // Show discovered paths for user selection
+      setDiscoveredPaths(discovered.urls);
+      setSelectedPaths(discovered.urls.map((_, idx) => idx)); // Select all by default
+      setShowPathSelection(true);
+      setStatus({ message: `Ditemukan ${discovered.urls.length} sub-path (${discovered.pdfCount} PDF). Silakan pilih untuk diproses.`, type: 'success' });
+    } catch (err) {
+      console.warn('handleCrawlAndProcess: error', err);
+      setStatus({ message: `Error: ${err.message}`, type: 'error' });
+    }
+  };
+
+  // Start processing selected paths
+  const handleProcessSelectedPaths = async () => {
+    const selectedUrls = selectedPaths.map(idx => discoveredPaths[idx]);
+    
+    // Separate PDFs and HTML pages
+    const pdfUrls = selectedUrls.filter(url => url.toLowerCase().endsWith('.pdf'));
+    const htmlUrls = selectedUrls.filter(url => !url.toLowerCase().endsWith('.pdf'));
+    
+    // Download PDFs directly
+    if (pdfUrls.length > 0) {
+      setStatus({ message: `Mengunduh ${pdfUrls.length} file PDF...`, type: 'info' });
+      pdfUrls.forEach((pdfUrl, index) => {
+        setTimeout(() => {
+          const link = document.createElement('a');
+          link.href = pdfUrl;
+          link.download = pdfUrl.split('/').pop() || `document_${index}.pdf`;
+          link.target = '_blank';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }, index * 300);
+      });
+    }
+    
+    // Process HTML pages
+    if (htmlUrls.length > 0) {
+      setUrlsFromFile(htmlUrls);
+      setProcessedMarkdowns([]);
+      setCurrentProcessingIndex(0);
+      setShowPathSelection(false);
+      setStatus({ message: `Memproses ${htmlUrls.length} halaman HTML...`, type: 'info' });
+      await startProcessingAll();
+    } else if (pdfUrls.length > 0) {
+      setShowPathSelection(false);
+      setStatus({ message: `Selesai mengunduh ${pdfUrls.length} file PDF.`, type: 'success' });
+    }
+  };
+
+  // Toggle path selection
+  const handleTogglePathSelection = (index) => {
+    setSelectedPaths(prev => {
+      if (prev.includes(index)) {
+        return prev.filter(i => i !== index);
+      } else {
+        return [...prev, index].sort((a, b) => a - b);
+      }
+    });
+  };
+
+  // Select/deselect all paths
+  const handleToggleAllPaths = () => {
+    if (selectedPaths.length === discoveredPaths.length) {
+      setSelectedPaths([]);
+    } else {
+      setSelectedPaths(discoveredPaths.map((_, idx) => idx));
+    }
+  };
+
+  // Crawl a root/origin URL and extract same-origin hrefs (one level deep)
+  const crawlUrls = async (origin) => {
+    try {
+      const response = await fetch(origin);
+      if (!response.ok) {
+        console.warn(`crawlUrls: failed to fetch ${origin}: ${response.status}`);
+        return { urls: [], pdfCount: 0 };
+      }
+      const html = await response.text();
+      // Parse and extract <a> hrefs
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const anchors = Array.from(doc.querySelectorAll('a[href]'));
+      const urls = anchors.map(a => a.getAttribute('href'))
+        .filter(href => href && !href.startsWith('#') && !href.startsWith('mailto:') && !href.startsWith('tel:') && !href.startsWith('javascript:'))
+        .map(href => {
+          try {
+            return new URL(href, origin).toString();
+          } catch (e) {
+            return null;
+          }
+        })
+        .filter(u => u !== null)
+        .filter(u => {
+          try { return new URL(u).origin === origin; } catch (e) { return false; }
+        })
+        .filter(u => {
+          // Drop likely binary/non-HTML assets by extension (except PDF which we handle separately)
+          const skipExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.zip', '.tar', '.gz', '.exe', '.dmg', '.iso'];
+          const path = new URL(u).pathname.toLowerCase();
+          return !skipExt.some(ext => path.endsWith(ext));
+        })
+        .map(u => {
+          // Normalize: remove fragment only
+          const nu = new URL(u);
+          nu.hash = '';
+          return nu.toString();
+        });
+
+      // Reduce to unique and only sub-paths (path not equal '/'), stable order
+      const unique = Array.from(new Set(urls)).filter(u => {
+        const p = new URL(u).pathname;
+        return p && p !== '/';
+      });
+
+      // Apply maxCrawlLinks limit
+      const limited = unique.slice(0, maxCrawlLinks);
+      
+      // Count PDFs
+      const pdfCount = limited.filter(u => u.toLowerCase().endsWith('.pdf')).length;
+      
+      return { urls: limited, pdfCount };
+    } catch (err) {
+      console.error('crawlUrls error', err);
+      return { urls: [], pdfCount: 0 };
     }
   };
 
@@ -495,9 +658,52 @@ function App() {
           <StatusDisplay message={status.message} type={status.type} />
           <UrlInputPanel
             onProcessUrl={handleProcessManualUrl}
+            onCrawlAndProcess={handleCrawlAndProcess}
             onProcessFile={handleProcessFile}
             disabled={!wasmInitialized || (isProcessingMultiple && !isPaused)}
-          />          <ControlsPanel
+          />
+          
+          {showPathSelection && discoveredPaths.length > 0 && (
+            <div className="path-selection-panel">
+              <h3>Sub-path Ditemukan ({discoveredPaths.length} total)</h3>
+              <div className="selection-controls">
+                <button onClick={handleToggleAllPaths} className="toggle-all-button">
+                  {selectedPaths.length === discoveredPaths.length ? 'Deselect All' : 'Select All'}
+                </button>
+                <button 
+                  onClick={handleProcessSelectedPaths} 
+                  disabled={selectedPaths.length === 0}
+                  className="process-selected-button"
+                >
+                  Proses {selectedPaths.length} Terpilih
+                </button>
+                <button 
+                  onClick={() => setShowPathSelection(false)}
+                  className="cancel-button"
+                >
+                  Batal
+                </button>
+              </div>
+              <div className="paths-list">
+                {discoveredPaths.map((path, index) => (
+                  <div key={index} className="path-item">
+                    <input
+                      type="checkbox"
+                      checked={selectedPaths.includes(index)}
+                      onChange={() => handleTogglePathSelection(index)}
+                      id={`path-${index}`}
+                    />
+                    <label htmlFor={`path-${index}`}>
+                      {path.endsWith('.pdf') && <span className="pdf-badge">PDF</span>}
+                      {path}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          
+          <ControlsPanel
               isProcessing={isProcessingMultiple && urlsFromFile.length > 0 && currentProcessingIndex < urlsFromFile.length}
               isPaused={isPaused}
               onStartProcessingAll={startProcessingAll}
@@ -509,6 +715,8 @@ function App() {
               hasProcessedContent={hasAnyProcessedContent()}
               maxRetries={maxRetries}
               onMaxRetriesChange={handleMaxRetriesChange}
+              maxCrawlLinks={maxCrawlLinks}
+              onMaxCrawlLinksChange={handleMaxCrawlLinksChange}
           />
           {processedMarkdowns.length > 0 && urlsFromFile.length > 0 && (
             <div className="processed-list">
