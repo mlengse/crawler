@@ -80,7 +80,7 @@ function App() {
               // Also bind the link extraction function
               if (typeof wasmInit.extract_links_from_html === 'function') {
                 window.extract_links_from_html = wasmInit.extract_links_from_html;
-                console.log('WASM link extraction function loaded successfully');
+                // console.log('WASM link extraction function loaded successfully');
               }
               
               setWasmInitialized(true);
@@ -256,7 +256,7 @@ function App() {
                 const proxyUrl = "https://api.codetabs.com/v1/proxy?quest=";
                 const proxiedUrl = proxyUrl + encodeURIComponent(url);
                 
-                console.log(`Trying CORS proxy service for ${url}`);
+                // console.log(`Trying CORS proxy service for ${url}`);
                 const proxyResponse = await fetch(proxiedUrl);
                 
                 if (proxyResponse.ok) {
@@ -272,7 +272,7 @@ function App() {
                 
                 // Try Service Worker approach which should handle CORS automatically
                 try {
-                  console.log(`Using Service Worker to handle CORS for ${url}`);
+                  // console.log(`Using Service Worker to handle CORS for ${url}`);
                   const swResponse = await fetch(url);
                   
                   if (swResponse.ok) {
@@ -675,14 +675,14 @@ function App() {
       // Try WASM first for better performance
       if (typeof window.extract_links_from_html === 'function') {
         try {
-          console.log(`Using WASM to extract links from ${url}`);
+          // console.log(`Using WASM to extract links from ${url}`);
           const startTime = performance.now();
           
           const jsonResult = window.extract_links_from_html(html, url);
           const wasmLinks = JSON.parse(jsonResult);
           
           const endTime = performance.now();
-          console.log(`WASM extraction took ${(endTime - startTime).toFixed(2)}ms`);
+          // console.log(`WASM extraction took ${(endTime - startTime).toFixed(2)}ms`);
           
           // Update stats
           setCrawlStats(prev => ({
@@ -712,7 +712,7 @@ function App() {
             }
           }
           
-          console.log(`WASM: ${wasmLinks.length} links found, ${filteredLinks.length} after origin filter, ${uniqueLinks.length} after deduplication`);
+          // console.log(`WASM: ${wasmLinks.length} links found, ${filteredLinks.length} after origin filter, ${uniqueLinks.length} after deduplication`);
           return uniqueLinks;
           
         } catch (wasmError) {
@@ -720,7 +720,7 @@ function App() {
           // Fall through to DOM Parser fallback
         }
       } else {
-        console.log(`WASM not available, using DOM Parser for ${url}`);
+        // console.log(`WASM not available, using DOM Parser for ${url}`);
       }
       
       // Fallback: Use DOM Parser (JavaScript)
@@ -729,7 +729,7 @@ function App() {
       const doc = parser.parseFromString(html, 'text/html');
       const anchors = Array.from(doc.querySelectorAll('a[href]'));
       
-      console.log(`DOM Parser: extracting links from ${url}: found ${anchors.length} anchor tags`);
+      // console.log(`DOM Parser: extracting links from ${url}: found ${anchors.length} anchor tags`);
       
       // Use Set to track normalized URLs for deduplication
       const seenNormalized = new Set();
@@ -783,7 +783,7 @@ function App() {
       }
 
       const endTime = performance.now();
-      console.log(`DOM Parser: ${(endTime - startTime).toFixed(2)}ms, ${uniqueLinks.length} valid unique links from ${url}`);
+      // console.log(`DOM Parser: ${(endTime - startTime).toFixed(2)}ms, ${uniqueLinks.length} valid unique links from ${url}`);
       
       // Update stats
       setCrawlStats(prev => ({
@@ -811,7 +811,7 @@ function App() {
     queued.add(startNormalized);
     setCrawlProgress({ current: 0, total: 1, depth: 0 });
     
-    console.log(`Starting deep crawl of ${startUrl} with max depth ${depth}`);
+    // console.log(`Starting deep crawl of ${startUrl} with max depth ${depth}`);
     
     while (queue.length > 0 && allUrls.size < maxCrawlLinks) {
       const { url, currentDepth } = queue.shift();
@@ -837,12 +837,12 @@ function App() {
         type: 'info' 
       });
       
-      console.log(`Crawling [depth ${currentDepth}]: ${url} (${visited.size} visited, ${queue.length} queued)`);
+      // console.log(`Crawling [depth ${currentDepth}]: ${url} (${visited.size} visited, ${queue.length} queued)`);
       
       // If we haven't reached max depth, crawl this page for more links
       if (currentDepth < depth) {
         const links = await extractLinksFromPage(url, baseOrigin);
-        console.log(`Found ${links.length} links on ${url}`);
+        // console.log(`Found ${links.length} links on ${url}`);
         
         // Add new links to queue
         let addedCount = 0;
@@ -854,24 +854,24 @@ function App() {
             addedCount++;
           }
         }
-        console.log(`Added ${addedCount} new unique links to queue (${links.length - addedCount} were duplicates)`);
+        // console.log(`Added ${addedCount} new unique links to queue (${links.length - addedCount} were duplicates)`);
       }
       
       // Small delay to avoid overwhelming the server
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     
-    console.log(`Crawl complete: visited ${visited.size} unique pages, found ${allUrls.size} total URLs`);
+    // console.log(`Crawl complete: visited ${visited.size} unique pages, found ${allUrls.size} total URLs`);
     
     // Log performance stats
     if (crawlStats.wasmCount > 0 || crawlStats.domCount > 0) {
-      const avgWasm = crawlStats.wasmCount > 0 ? (crawlStats.wasmTime / crawlStats.wasmCount).toFixed(2) : 0;
-      const avgDom = crawlStats.domCount > 0 ? (crawlStats.domTime / crawlStats.domCount).toFixed(2) : 0;
-      console.log(`Performance Stats - WASM: ${crawlStats.wasmCount} pages (avg ${avgWasm}ms), DOM: ${crawlStats.domCount} pages (avg ${avgDom}ms)`);
+      // const avgWasm = crawlStats.wasmCount > 0 ? (crawlStats.wasmTime / crawlStats.wasmCount).toFixed(2) : 0;
+      // const avgDom = crawlStats.domCount > 0 ? (crawlStats.domTime / crawlStats.domCount).toFixed(2) : 0;
+      // console.log(`Performance Stats - WASM: ${crawlStats.wasmCount} pages (avg ${avgWasm}ms), DOM: ${crawlStats.domCount} pages (avg ${avgDom}ms)`);
       
       if (crawlStats.wasmCount > 0 && crawlStats.domCount > 0) {
-        const speedup = (crawlStats.domTime / crawlStats.domCount) / (crawlStats.wasmTime / crawlStats.wasmCount);
-        console.log(`WASM is ${speedup.toFixed(2)}x faster than DOM Parser`);
+        // const speedup = (crawlStats.domTime / crawlStats.domCount) / (crawlStats.wasmTime / crawlStats.wasmCount);
+        // console.log(`WASM is ${speedup.toFixed(2)}x faster than DOM Parser`);
       }
     }
     
