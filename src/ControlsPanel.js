@@ -19,7 +19,9 @@ function ControlsPanel({
   maxCrawlLinks,
   onMaxCrawlLinksChange,
   maxCrawlDepth,
-  onMaxCrawlDepthChange
+  onMaxCrawlDepthChange,
+  saveFormat,
+  onSaveFormatChange
 }) {
   return (
     <div className="controls-panel">      <button
@@ -84,7 +86,36 @@ function ControlsPanel({
 
       <hr />
 
-      <div className="save-controls">        <div className="checkbox-container">
+      <div className="save-controls">
+        <div className="format-selection">
+          <label>Format Output:</label>
+          <div className="radio-group">
+            <label className="radio-label">
+              <input
+                type="radio"
+                name="saveFormat"
+                value="markdown"
+                checked={saveFormat === 'markdown'}
+                onChange={(e) => onSaveFormatChange(e.target.value)}
+                disabled={isProcessing}
+              />
+              Markdown (.md)
+            </label>
+            <label className="radio-label">
+              <input
+                type="radio"
+                name="saveFormat"
+                value="pdf"
+                checked={saveFormat === 'pdf'}
+                onChange={(e) => onSaveFormatChange(e.target.value)}
+                disabled={isProcessing}
+              />
+              PDF (.pdf)
+            </label>
+          </div>
+        </div>
+
+        <div className="checkbox-container">
         <input
           type="checkbox"
           id="saveMergedCheckbox"
@@ -132,7 +163,7 @@ function ControlsPanel({
           disabled={isProcessing || !hasProcessedContent}
           className="save-button"
         >
-          Simpan Markdown
+          Simpan sebagai {saveFormat === 'pdf' ? 'PDF' : 'Markdown'}
         </button>
       </div>
     </div>

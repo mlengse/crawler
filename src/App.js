@@ -17,6 +17,100 @@ function downloadFile(filename, content) {
   URL.revokeObjectURL(element.href); // Clean up
 }
 
+// Helper function to save HTML as PDF using browser print
+function saveAsPDF(filename, htmlContent, url) {
+  // Create a new window for printing
+  const printWindow = window.open('', '_blank');
+  
+  // Write styled HTML content
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>${filename}</title>
+        <meta charset="UTF-8">
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+          }
+          h1, h2, h3, h4, h5, h6 {
+            margin-top: 24px;
+            margin-bottom: 16px;
+            font-weight: 600;
+            line-height: 1.25;
+          }
+          h1 { font-size: 2em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
+          h2 { font-size: 1.5em; border-bottom: 1px solid #eaecef; padding-bottom: 0.3em; }
+          h3 { font-size: 1.25em; }
+          p { margin-bottom: 16px; }
+          a { color: #0366d6; text-decoration: none; }
+          a:hover { text-decoration: underline; }
+          code {
+            padding: 0.2em 0.4em;
+            margin: 0;
+            font-size: 85%;
+            background-color: rgba(27,31,35,0.05);
+            border-radius: 3px;
+          }
+          pre {
+            padding: 16px;
+            overflow: auto;
+            font-size: 85%;
+            line-height: 1.45;
+            background-color: #f6f8fa;
+            border-radius: 3px;
+          }
+          img { max-width: 100%; }
+          table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 16px;
+          }
+          table th, table td {
+            padding: 6px 13px;
+            border: 1px solid #dfe2e5;
+          }
+          table tr:nth-child(2n) {
+            background-color: #f6f8fa;
+          }
+          .source-url {
+            background: #f0f0f0;
+            padding: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #0366d6;
+            font-size: 0.9em;
+          }
+          @media print {
+            body { margin: 0; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="source-url">
+          <strong>Sumber:</strong> <a href="${url}">${url}</a>
+        </div>
+        ${htmlContent}
+      </body>
+    </html>
+  `);
+  
+  printWindow.document.close();
+  
+  // Wait for content to load, then trigger print
+  printWindow.onload = function() {
+    setTimeout(() => {
+      printWindow.print();
+      // Note: Window will close automatically after print dialog is dismissed
+      // or user can close it manually
+    }, 250);
+  };
+}
+
 // Helper to generate filename from URL (similar to Electron app)
 function generateFilenameFromUrl(urlStr) {
   try {
@@ -42,12 +136,13 @@ function App() {
   const [lastProcessedUrl, setLastProcessedUrl] = useState('');
 
   const [urlsFromFile, setUrlsFromFile] = useState([]);
-  const [processedMarkdowns, setProcessedMarkdowns] = useState([]); // Array of {url, markdown, error?}
+  const [processedMarkdowns, setProcessedMarkdowns] = useState([]); // Array of {url, markdown, html, error?}
   const [currentProcessingIndex, setCurrentProcessingIndex] = useState(0);  const [isProcessingMultiple, setIsProcessingMultiple] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [saveMerged, setSaveMerged] = useState(true); // State for the checkbox
   const [splitMergedFiles, setSplitMergedFiles] = useState(false); // State for splitting merged files
   const [urlsPerFile, setUrlsPerFile] = useState(10); // URLs per file when splitting
+  const [saveFormat, setSaveFormat] = useState('markdown'); // 'markdown' or 'pdf'
   const [maxRetries, setMaxRetries] = useState(3); // State for max retries
   const [maxCrawlLinks, setMaxCrawlLinks] = useState(5000); // State for max crawl links (increased default)
   const [maxCrawlDepth, setMaxCrawlDepth] = useState(3); // State for max crawl depth (increased to 3)
@@ -218,7 +313,7 @@ function App() {
         const markdown = convertHtmlToMarkdown(htmlContent, url);
         
         success = true;
-        return { url, markdown };
+        return { url, markdown, html: htmlContent };
       } catch (error) {
         console.error(`Error memproses ${url} (percobaan ${attempts}):`, error);
         let errorMessage = error.message;
@@ -247,7 +342,7 @@ function App() {
               const htmlContent = await xhrPromise;
               const markdown = convertHtmlToMarkdown(htmlContent, url);
               success = true;
-              return { url, markdown, usedXHR: true };
+              return { url, markdown, html: htmlContent, usedXHR: true };
             } catch (xhrError) {
                 console.error(`XHR fallback failed for ${url}:`, xhrError);
                 
@@ -263,7 +358,7 @@ function App() {
                   const htmlContent = await proxyResponse.text();
                   const markdown = window.process_html_to_markdown(htmlContent, url);
                   success = true;
-                  return { url, markdown, usedProxy: true };
+                  return { url, markdown, html: htmlContent, usedProxy: true };
                 } else {
                   throw new Error(`Proxy HTTP error! status: ${proxyResponse.status}`);
                 }
@@ -279,7 +374,7 @@ function App() {
                     const htmlContent = await swResponse.text();
                     const markdown = window.process_html_to_markdown(htmlContent, url);
                     success = true;
-                    return { url, markdown, usedServiceWorker: true };
+                    return { url, markdown, html: htmlContent, usedServiceWorker: true };
                   } else {
                     throw new Error(`Service Worker fetch failed with status: ${swResponse.status}`);
                   }
@@ -322,7 +417,7 @@ function App() {
               .replace(/<[^>]*>/g, '') // Remove remaining HTML tags
               .replace(/\n\s*\n\s*\n/g, '\n\n'); // Clean up multiple newlines
             
-            return { url, markdown, usedFallback: true };
+            return { url, markdown, html: htmlContent, usedFallback: true };
           } catch (fallbackError) {
             console.error(`Fallback conversion failed for ${url}:`, fallbackError);
             if (!isFromFile) setStatus({ message: `Error memproses ${url}: ${errorMessage}`, type: 'error' });
@@ -439,6 +534,10 @@ function App() {
       setMaxCrawlDepth(value);
     }
   };
+
+  const handleSaveFormatChange = (format) => {
+    setSaveFormat(format);
+  };
   const handleSaveMarkdown = () => {
     const successfulMarkdowns = processedMarkdowns.filter(item => item && !item.error && item.markdown);
 
@@ -462,66 +561,123 @@ function App() {
         }
       }
       
-      // console.log(`handleSaveMarkdown: ${successfulMarkdowns.length} successful, ${uniqueMarkdowns.length} unique URLs`);
-      
-      if (saveMerged) {
-        if (splitMergedFiles && urlsPerFile > 0) {
-          // Split into multiple merged files
-          const totalFiles = Math.ceil(uniqueMarkdowns.length / urlsPerFile);
-          const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-          
-          // console.log(`Splitting ${uniqueMarkdowns.length} URLs into ${totalFiles} files (${urlsPerFile} URLs per file)`);
-          
-          for (let i = 0; i < totalFiles; i++) {
-            const startIdx = i * urlsPerFile;
-            const endIdx = Math.min(startIdx + urlsPerFile, uniqueMarkdowns.length);
-            const chunk = uniqueMarkdowns.slice(startIdx, endIdx);
+      // Save as PDF
+      if (saveFormat === 'pdf') {
+        if (saveMerged) {
+          if (splitMergedFiles && urlsPerFile > 0) {
+            // Split into multiple PDF files
+            const totalFiles = Math.ceil(uniqueMarkdowns.length / urlsPerFile);
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
             
-            const mergedContent = chunk
+            for (let i = 0; i < totalFiles; i++) {
+              const startIdx = i * urlsPerFile;
+              const endIdx = Math.min(startIdx + urlsPerFile, uniqueMarkdowns.length);
+              const chunk = uniqueMarkdowns.slice(startIdx, endIdx);
+              
+              const mergedHtml = chunk
+                .map(item => `<h2>${item.url}</h2>${item.html || item.markdown.replace(/^# .*\n\n/, '')}`)
+                .join('<hr style="margin: 40px 0; border: 2px solid #ccc;">');
+              
+              const filename = `merged_urls_${timestamp}_part${i + 1}of${totalFiles}.pdf`;
+              
+              setTimeout(() => {
+                saveAsPDF(filename, mergedHtml, `Merged URLs (Part ${i + 1}/${totalFiles})`);
+              }, i * 500);
+            }
+            
+            setStatus({ 
+              message: `Menyimpan ${uniqueMarkdowns.length} URL unik sebagai ${totalFiles} file PDF (${urlsPerFile} URL per file)`, 
+              type: 'success' 
+            });
+          } else {
+            // Save all as one PDF
+            const mergedHtml = uniqueMarkdowns
+              .map(item => `<h2>${item.url}</h2>${item.html || item.markdown.replace(/^# .*\n\n/, '')}`)
+              .join('<hr style="margin: 40px 0; border: 2px solid #ccc;">');
+            
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+            const filename = `merged_urls_${timestamp}.pdf`;
+            saveAsPDF(filename, mergedHtml, 'Merged URLs');
+            setStatus({ message: `Menyimpan ${uniqueMarkdowns.length} URL unik sebagai file PDF gabungan`, type: 'success' });
+          }
+        } else {
+          // Save each URL as separate PDF
+          uniqueMarkdowns.forEach((item, index) => {
+            const filename = generateFilenameFromUrl(item.url).replace('.md', '.pdf');
+            const htmlContent = item.html || item.markdown.replace(/^# .*\n\n/, '');
+            
+            setTimeout(() => {
+              saveAsPDF(filename, htmlContent, item.url);
+            }, index * 500);
+          });
+          setStatus({ message: `Memulai unduhan ${uniqueMarkdowns.length} file PDF terpisah`, type: 'success' });
+        }
+      } else {
+        // Save as Markdown (original behavior)
+        if (saveMerged) {
+          if (splitMergedFiles && urlsPerFile > 0) {
+            // Split into multiple merged files
+            const totalFiles = Math.ceil(uniqueMarkdowns.length / urlsPerFile);
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+            
+            for (let i = 0; i < totalFiles; i++) {
+              const startIdx = i * urlsPerFile;
+              const endIdx = Math.min(startIdx + urlsPerFile, uniqueMarkdowns.length);
+              const chunk = uniqueMarkdowns.slice(startIdx, endIdx);
+              
+              const mergedContent = chunk
+                .map(item => `## ${item.url}\n\n${item.markdown}`)
+                .join('\n\n---\n\n');
+              
+              const filename = `merged_urls_${timestamp}_part${i + 1}of${totalFiles}.md`;
+              
+              setTimeout(() => {
+                downloadFile(filename, mergedContent);
+              }, i * 200);
+            }
+            
+            setStatus({ 
+              message: `Menyimpan ${uniqueMarkdowns.length} URL unik sebagai ${totalFiles} file gabungan (${urlsPerFile} URL per file)`, 
+              type: 'success' 
+            });
+          } else {
+            // Save all as one merged file
+            const mergedContent = uniqueMarkdowns
               .map(item => `## ${item.url}\n\n${item.markdown}`)
               .join('\n\n---\n\n');
             
-            const filename = `merged_urls_${timestamp}_part${i + 1}of${totalFiles}.md`;
-            
-            // Add delay between downloads
-            setTimeout(() => {
-              downloadFile(filename, mergedContent);
-            }, i * 200);
+            const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+            const filename = `merged_urls_${timestamp}.md`;
+            downloadFile(filename, mergedContent);
+            setStatus({ message: `Menyimpan ${uniqueMarkdowns.length} URL unik sebagai file gabungan: ${filename}`, type: 'success' });
           }
-          
-          setStatus({ 
-            message: `Menyimpan ${uniqueMarkdowns.length} URL unik sebagai ${totalFiles} file gabungan (${urlsPerFile} URL per file)`, 
-            type: 'success' 
-          });
         } else {
-          // Save all as one merged file
-          const mergedContent = uniqueMarkdowns
-            .map(item => `## ${item.url}\n\n${item.markdown}`)
-            .join('\n\n---\n\n');
-          
-          const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-          const filename = `merged_urls_${timestamp}.md`;
-          downloadFile(filename, mergedContent);
-          setStatus({ message: `Menyimpan ${uniqueMarkdowns.length} URL unik sebagai file gabungan: ${filename}`, type: 'success' });
+          // Save each URL as separate file
+          uniqueMarkdowns.forEach((item, index) => {
+            const filename = generateFilenameFromUrl(item.url);
+            const content = `# ${item.url}\n\n${item.markdown}`;
+            
+            setTimeout(() => {
+              downloadFile(filename, content);
+            }, index * 200);
+          });
+          setStatus({ message: `Memulai unduhan ${uniqueMarkdowns.length} file terpisah`, type: 'success' });
         }
-      } else {
-        // Save each URL as separate file
-        uniqueMarkdowns.forEach((item, index) => {
-          const filename = generateFilenameFromUrl(item.url);
-          const content = `# ${item.url}\n\n${item.markdown}`;
-          
-          // Add small delay between downloads to prevent browser blocking
-          setTimeout(() => {
-            downloadFile(filename, content);
-          }, index * 200);
-        });
-        setStatus({ message: `Memulai unduhan ${uniqueMarkdowns.length} file terpisah`, type: 'success' });
       }
     } else if (urlsFromFile.length === 0 && lastProcessedUrl && markdownResult && !markdownResult.startsWith("Error:")) {
       // Single manual URL result
-      const filename = generateFilenameFromUrl(lastProcessedUrl);
-      const content = `# ${lastProcessedUrl}\n\n${markdownResult}`;
-      downloadFile(filename, content);      setStatus({ message: `Tersimpan: ${filename}`, type: 'success' });
+      if (saveFormat === 'pdf') {
+        const filename = generateFilenameFromUrl(lastProcessedUrl).replace('.md', '.pdf');
+        const currentItem = processedMarkdowns.length > 0 ? processedMarkdowns[processedMarkdowns.length - 1] : null;
+        const htmlContent = currentItem?.html || markdownResult.replace(/^# .*\n\n/, '');
+        saveAsPDF(filename, htmlContent, lastProcessedUrl);
+        setStatus({ message: `Tersimpan sebagai PDF: ${filename}`, type: 'success' });
+      } else {
+        const filename = generateFilenameFromUrl(lastProcessedUrl);
+        const content = `# ${lastProcessedUrl}\n\n${markdownResult}`;
+        downloadFile(filename, content);
+        setStatus({ message: `Tersimpan: ${filename}`, type: 'success' });
+      }
     } else {
       setStatus({ message: 'Tidak ada konten yang tersedia untuk disimpan.', type: 'warning' });
     }
@@ -787,7 +943,7 @@ function App() {
     
     markdown += cleaned;
     
-    const endTime = performance.now();
+    // const endTime = performance.now();
     // console.log(`JavaScript HTML conversion took ${(endTime - startTime).toFixed(2)}ms`);
     
     return markdown;
@@ -1190,6 +1346,8 @@ function App() {
               onMaxCrawlLinksChange={handleMaxCrawlLinksChange}
               maxCrawlDepth={maxCrawlDepth}
               onMaxCrawlDepthChange={handleMaxCrawlDepthChange}
+              saveFormat={saveFormat}
+              onSaveFormatChange={handleSaveFormatChange}
           />
           {processedMarkdowns.length > 0 && urlsFromFile.length > 0 && (
             <div className="processed-list">
