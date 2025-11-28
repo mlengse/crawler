@@ -10,7 +10,7 @@ node_modules/
 node_modules/
 
 # Development files - Rust specific
-src/src/
+# src/src/ is needed for Rust library source code!
 src/target/
 src/wasm-pack-v0.13.1-x86_64-pc-windows-msvc/
 src/wasm-pack.tar.gz
