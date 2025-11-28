@@ -1,0 +1,5 @@
+# Ignore generated WASM files (built during deployment)
+*.wasm
+rust_backend*.js
+rust_backend*.ts
+rust_backend*.d.ts

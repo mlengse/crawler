@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Worker Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .warning {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+    </style>
+</head>
+<body>
+    <h1>Service Worker Test</h1>
+    <div id="status" class="status">Checking Service Worker status...</div>
+    
+    <h2>Test Fetch Request</h2>
+    <button id="testButton">Test Fetch with Service Worker</button>
+    <div id="result" class="status">Results will appear here</div>
+    
+    <script>
+        // Check if Service Worker is registered
+        window.addEventListener('load', () => {
+            const statusEl = document.getElementById('status');
+            
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.ready
+                    .then(registration => {
+                        statusEl.textContent = 'Service Worker is active and ready! Scope: ' + registration.scope;
+                        statusEl.className = 'status success';
+                    })
+                    .catch(error => {
+                        statusEl.textContent = 'Error checking Service Worker status: ' + error;
+                        statusEl.className = 'status error';
+                    });
+            } else {
+                statusEl.textContent = 'Service Workers are not supported in this browser.';
+                statusEl.className = 'status warning';
+            }
+        });
+        
+        // Test button to check if fetch requests are intercepted
+        document.getElementById('testButton').addEventListener('click', async () => {
+            const resultEl = document.getElementById('result');
+            resultEl.textContent = 'Testing fetch through Service Worker...';
+            resultEl.className = 'status';
+            
+            try {
+                // Try to fetch a URL that would normally have CORS issues
+                const testUrl = 'https://en.wikipedia.org/wiki/Main_Page';
+                const response = await fetch(testUrl);
+                
+                if (response.ok) {
+                    const text = await response.text();
+                    resultEl.textContent = `Success! Fetched ${text.length} characters from ${testUrl}`;
+                    resultEl.className = 'status success';
+                } else {
+                    resultEl.textContent = `Fetch failed with status: ${response.status}`;
+                    resultEl.className = 'status error';
+                }
+            } catch (error) {
+                resultEl.textContent = `Error during fetch: ${error.message}`;
+                resultEl.className = 'status error';
+            }
+        });
+    </script>
+</body>
+</html>
