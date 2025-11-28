@@ -46,11 +46,15 @@ function App() {
   const [currentProcessingIndex, setCurrentProcessingIndex] = useState(0);  const [isProcessingMultiple, setIsProcessingMultiple] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [saveMerged, setSaveMerged] = useState(true); // State for the checkbox
+  const [splitMergedFiles, setSplitMergedFiles] = useState(false); // State for splitting merged files
+  const [urlsPerFile, setUrlsPerFile] = useState(10); // URLs per file when splitting
   const [maxRetries, setMaxRetries] = useState(3); // State for max retries
   const [maxCrawlLinks, setMaxCrawlLinks] = useState(100); // State for max crawl links
+  const [maxCrawlDepth, setMaxCrawlDepth] = useState(2); // State for max crawl depth
   const [discoveredPaths, setDiscoveredPaths] = useState([]); // Discovered paths from crawl
   const [selectedPaths, setSelectedPaths] = useState([]); // User-selected paths to process
   const [showPathSelection, setShowPathSelection] = useState(false); // Show path selection UI
+  const [crawlProgress, setCrawlProgress] = useState({ current: 0, total: 0, depth: 0 }); // Crawl progress tracking
 
   const processingPausedRef = useRef(isPaused);
   useEffect(() => { processingPausedRef.current = isPaused; }, [isPaused]);  useEffect(() => {
@@ -396,6 +400,17 @@ function App() {
     setSaveMerged(prev => !prev);
   };
 
+  const handleToggleSplitMerged = () => {
+    setSplitMergedFiles(prev => !prev);
+  };
+
+  const handleUrlsPerFileChange = (newUrlsPerFile) => {
+    const value = parseInt(newUrlsPerFile, 10);
+    if (value >= 1 && value <= 100) {
+      setUrlsPerFile(value);
+    }
+  };
+
   const handleMaxRetriesChange = (newMaxRetries) => {
     const value = parseInt(newMaxRetries, 10);
     if (value >= 1 && value <= 10) {
@@ -409,6 +424,13 @@ function App() {
       setMaxCrawlLinks(value);
     }
   };
+
+  const handleMaxCrawlDepthChange = (newMaxCrawlDepth) => {
+    const value = parseInt(newMaxCrawlDepth, 10);
+    if (value >= 1 && value <= 5) {
+      setMaxCrawlDepth(value);
+    }
+  };
   const handleSaveMarkdown = () => {
     const successfulMarkdowns = processedMarkdowns.filter(item => item && !item.error && item.markdown);
 
@@ -419,15 +441,43 @@ function App() {
       }
       
       if (saveMerged) {
-        // Save all as one merged file
-        const mergedContent = successfulMarkdowns
-          .map(item => `## ${item.url}\n\n${item.markdown}`)
-          .join('\n\n---\n\n');
-        
-        const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
-        const filename = `merged_urls_${timestamp}.md`;
-        downloadFile(filename, mergedContent);
-        setStatus({ message: `Menyimpan ${successfulMarkdowns.length} URL sebagai file gabungan: ${filename}`, type: 'success' });
+        if (splitMergedFiles && urlsPerFile > 0) {
+          // Split into multiple merged files
+          const totalFiles = Math.ceil(successfulMarkdowns.length / urlsPerFile);
+          const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+          
+          for (let i = 0; i < totalFiles; i++) {
+            const startIdx = i * urlsPerFile;
+            const endIdx = Math.min(startIdx + urlsPerFile, successfulMarkdowns.length);
+            const chunk = successfulMarkdowns.slice(startIdx, endIdx);
+            
+            const mergedContent = chunk
+              .map(item => `## ${item.url}\n\n${item.markdown}`)
+              .join('\n\n---\n\n');
+            
+            const filename = `merged_urls_${timestamp}_part${i + 1}of${totalFiles}.md`;
+            
+            // Add delay between downloads
+            setTimeout(() => {
+              downloadFile(filename, mergedContent);
+            }, i * 200);
+          }
+          
+          setStatus({ 
+            message: `Menyimpan ${successfulMarkdowns.length} URL sebagai ${totalFiles} file gabungan (${urlsPerFile} URL per file)`, 
+            type: 'success' 
+          });
+        } else {
+          // Save all as one merged file
+          const mergedContent = successfulMarkdowns
+            .map(item => `## ${item.url}\n\n${item.markdown}`)
+            .join('\n\n---\n\n');
+          
+          const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+          const filename = `merged_urls_${timestamp}.md`;
+          downloadFile(filename, mergedContent);
+          setStatus({ message: `Menyimpan ${successfulMarkdowns.length} URL sebagai file gabungan: ${filename}`, type: 'success' });
+        }
       } else {
         // Save each URL as separate file
         successfulMarkdowns.forEach((item, index) => {
@@ -472,11 +522,11 @@ function App() {
       if (!/^https?:\/\//i.test(url)) normalized = `https://${url}`;
       const urlObj = new URL(normalized);
       
-      setStatus({ message: `Mencari sub-path di ${urlObj.origin}...`, type: 'info' });
-      const discovered = await crawlUrls(urlObj.origin);
+      setStatus({ message: `Mencari semua halaman di ${urlObj.origin} (kedalaman maksimal: ${maxCrawlDepth})...`, type: 'info' });
+      const discovered = await crawlUrlsDeep(urlObj.origin, maxCrawlDepth);
 
       if (!discovered || !discovered.urls || discovered.urls.length === 0) {
-        setStatus({ message: `Tidak menemukan sub-path. Memproses root: ${normalized}`, type: 'info' });
+        setStatus({ message: `Tidak menemukan halaman. Memproses root: ${normalized}`, type: 'info' });
         const result = await processSingleUrl(normalized, false);
         if (result) {
           setMarkdownResult(result.markdown);
@@ -493,7 +543,17 @@ function App() {
       setDiscoveredPaths(discovered.urls);
       setSelectedPaths(discovered.urls.map((_, idx) => idx)); // Select all by default
       setShowPathSelection(true);
-      setStatus({ message: `Ditemukan ${discovered.urls.length} sub-path (${discovered.pdfCount} PDF). Silakan pilih untuk diproses.`, type: 'success' });
+      
+      let message = `Ditemukan ${discovered.urls.length} halaman`;
+      if (discovered.totalFound > discovered.urls.length) {
+        message += ` (dibatasi dari ${discovered.totalFound} total)`;
+      }
+      if (discovered.pdfCount > 0) {
+        message += ` termasuk ${discovered.pdfCount} PDF`;
+      }
+      message += `. Dikunjungi ${discovered.visited} halaman selama crawling.`;
+      
+      setStatus({ message: message + ' Silakan pilih untuk diproses.', type: 'success' });
     } catch (err) {
       console.warn('handleCrawlAndProcess: error', err);
       setStatus({ message: `Error: ${err.message}`, type: 'error' });
@@ -558,7 +618,125 @@ function App() {
     }
   };
 
-  // Crawl a root/origin URL and extract same-origin hrefs (one level deep)
+  // Extract links from a single page
+  const extractLinksFromPage = async (url, baseOrigin) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.warn(`extractLinksFromPage: failed to fetch ${url}: ${response.status}`);
+        return [];
+      }
+      const html = await response.text();
+      
+      // Parse and extract <a> hrefs
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const anchors = Array.from(doc.querySelectorAll('a[href]'));
+      
+      const links = anchors
+        .map(a => a.getAttribute('href'))
+        .filter(href => href && !href.startsWith('#') && !href.startsWith('mailto:') && !href.startsWith('tel:') && !href.startsWith('javascript:'))
+        .map(href => {
+          try {
+            return new URL(href, url).toString();
+          } catch (e) {
+            return null;
+          }
+        })
+        .filter(u => u !== null)
+        .filter(u => {
+          try { 
+            return new URL(u).origin === baseOrigin; 
+          } catch (e) { 
+            return false; 
+          }
+        })
+        .filter(u => {
+          // Drop likely binary/non-HTML assets by extension (except PDF which we handle separately)
+          const skipExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.zip', '.tar', '.gz', '.exe', '.dmg', '.iso'];
+          const path = new URL(u).pathname.toLowerCase();
+          return !skipExt.some(ext => path.endsWith(ext));
+        })
+        .map(u => {
+          // Normalize: remove fragment only
+          const nu = new URL(u);
+          nu.hash = '';
+          return nu.toString();
+        });
+
+      return Array.from(new Set(links));
+    } catch (err) {
+      console.error(`extractLinksFromPage error for ${url}:`, err);
+      return [];
+    }
+  };
+
+  // Deep crawl with maximum depth - crawls ALL links recursively
+  const crawlUrlsDeep = async (startUrl, depth = maxCrawlDepth) => {
+    const baseOrigin = new URL(startUrl).origin;
+    const visited = new Set();
+    const allUrls = new Set();
+    const queue = [{ url: startUrl, currentDepth: 0 }];
+    
+    setCrawlProgress({ current: 0, total: 1, depth: 0 });
+    
+    while (queue.length > 0 && allUrls.size < maxCrawlLinks) {
+      const { url, currentDepth } = queue.shift();
+      
+      // Skip if already visited or exceeds depth
+      if (visited.has(url) || currentDepth > depth) {
+        continue;
+      }
+      
+      visited.add(url);
+      allUrls.add(url);
+      
+      // Update progress
+      setCrawlProgress({ 
+        current: visited.size, 
+        total: visited.size + queue.length, 
+        depth: currentDepth 
+      });
+      
+      setStatus({ 
+        message: `Crawling (kedalaman ${currentDepth}/${depth}): ${visited.size} halaman ditemukan, ${queue.length} dalam antrian...`, 
+        type: 'info' 
+      });
+      
+      // If we haven't reached max depth, crawl this page for more links
+      if (currentDepth < depth) {
+        const links = await extractLinksFromPage(url, baseOrigin);
+        
+        // Add new links to queue
+        for (const link of links) {
+          if (!visited.has(link) && !queue.find(item => item.url === link)) {
+            queue.push({ url: link, currentDepth: currentDepth + 1 });
+          }
+        }
+      }
+      
+      // Small delay to avoid overwhelming the server
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    
+    // Filter out root path if needed
+    const filteredUrls = Array.from(allUrls).filter(u => {
+      const path = new URL(u).pathname;
+      return path && path !== '/';
+    });
+    
+    // Count PDFs
+    const pdfCount = filteredUrls.filter(u => u.toLowerCase().endsWith('.pdf')).length;
+    
+    return { 
+      urls: filteredUrls.slice(0, maxCrawlLinks), 
+      pdfCount,
+      totalFound: filteredUrls.length,
+      visited: visited.size
+    };
+  };
+
+  // Legacy single-level crawl (kept for backward compatibility)
   const crawlUrls = async (origin) => {
     try {
       const response = await fetch(origin);
@@ -665,7 +843,12 @@ function App() {
           
           {showPathSelection && discoveredPaths.length > 0 && (
             <div className="path-selection-panel">
-              <h3>Sub-path Ditemukan ({discoveredPaths.length} total)</h3>
+              <h3>Halaman Ditemukan ({discoveredPaths.length} total)</h3>
+              {crawlProgress.total > 0 && (
+                <div className="crawl-progress">
+                  <p>Progress Crawling: {crawlProgress.current} halaman di-crawl (kedalaman: {crawlProgress.depth})</p>
+                </div>
+              )}
               <div className="selection-controls">
                 <button onClick={handleToggleAllPaths} className="toggle-all-button">
                   {selectedPaths.length === discoveredPaths.length ? 'Deselect All' : 'Select All'}
@@ -712,11 +895,17 @@ function App() {
               onSaveMarkdown={handleSaveMarkdown}
               saveMerged={saveMerged}
               onToggleSaveMerged={handleToggleSaveMerged}
+              splitMergedFiles={splitMergedFiles}
+              onToggleSplitMerged={handleToggleSplitMerged}
+              urlsPerFile={urlsPerFile}
+              onUrlsPerFileChange={handleUrlsPerFileChange}
               hasProcessedContent={hasAnyProcessedContent()}
               maxRetries={maxRetries}
               onMaxRetriesChange={handleMaxRetriesChange}
               maxCrawlLinks={maxCrawlLinks}
               onMaxCrawlLinksChange={handleMaxCrawlLinksChange}
+              maxCrawlDepth={maxCrawlDepth}
+              onMaxCrawlDepthChange={handleMaxCrawlDepthChange}
           />
           {processedMarkdowns.length > 0 && urlsFromFile.length > 0 && (
             <div className="processed-list">
