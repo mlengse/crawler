@@ -20,15 +20,16 @@ function ControlsPanel({
   onMaxCrawlLinksChange,
   maxCrawlDepth,
   onMaxCrawlDepthChange
-}) {return (
+}) {
+  return (
     <div className="controls-panel">      <button
-        onClick={onStartProcessingAll}
-        disabled={!canStartProcessing || isProcessing}
-        className="action-button"
-      >
-        Mulai Memproses Semua
-      </button>
-      
+      onClick={onStartProcessingAll}
+      disabled={!canStartProcessing || isProcessing}
+      className="action-button"
+    >
+      Mulai Memproses Semua
+    </button>
+
       <button
         onClick={onTogglePauseResume}
         disabled={!isProcessing}
@@ -36,9 +37,10 @@ function ControlsPanel({
       >
         {isPaused ? 'Lanjutkan' : 'Jeda'}
       </button>
-        <hr />
-      
-      <div className="retry-controls">        <div className="input-container">
+      <hr />
+
+      <div className="retry-controls">
+        <div className="input-container">
           <label htmlFor="maxRetriesInput">Percobaan Ulang per URL:</label>
           <input
             type="number"
@@ -51,6 +53,7 @@ function ControlsPanel({
             className="retry-input"
           />
         </div>
+        <br />
         <div className="input-container">
           <label htmlFor="maxCrawlLinksInput">Maksimal Link Crawl:</label>
           <input
@@ -64,6 +67,7 @@ function ControlsPanel({
             className="retry-input"
           />
         </div>
+        <br />
         <div className="input-container">
           <label htmlFor="maxCrawlDepthInput">Kedalaman Crawl Maksimal:</label>
           <input
@@ -79,20 +83,20 @@ function ControlsPanel({
           />
         </div>
       </div>
-      
+
       <hr />
-      
+
       <div className="save-controls">        <div className="checkbox-container">
-          <input
-            type="checkbox"
-            id="saveMergedCheckbox"
-            checked={saveMerged}
-            onChange={onToggleSaveMerged}
-            disabled={isProcessing}
-          />
-          <label htmlFor="saveMergedCheckbox">Simpan gabungan dalam satu file</label>
-        </div>
-        
+        <input
+          type="checkbox"
+          id="saveMergedCheckbox"
+          checked={saveMerged}
+          onChange={onToggleSaveMerged}
+          disabled={isProcessing}
+        />
+        <label htmlFor="saveMergedCheckbox">Simpan gabungan dalam satu file</label>
+      </div>
+
         {saveMerged && (
           <div className="split-config">
             <div className="checkbox-container">
@@ -105,7 +109,7 @@ function ControlsPanel({
               />
               <label htmlFor="splitMergedCheckbox">Bagi menjadi beberapa file</label>
             </div>
-            
+
             {splitMergedFiles && (
               <div className="input-container">
                 <label htmlFor="urlsPerFileInput">URL per File:</label>
@@ -124,7 +128,7 @@ function ControlsPanel({
             )}
           </div>
         )}
-        
+
         <button
           onClick={onSaveMarkdown}
           disabled={isProcessing || !hasProcessedContent}
