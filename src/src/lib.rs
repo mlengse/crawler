@@ -189,3 +189,107 @@ pub fn generate_filename_from_url(url_str: &str) -> String {
         format!("{}.md", sanitized)
     }
 }
+
+// Extract links from HTML content (WASM-based crawler helper)
+#[wasm_bindgen]
+pub fn extract_links_from_html(html_content: String, base_url: String) -> Result<String, JsValue> {
+    console_log!("Extracting links from HTML for base URL: {}", base_url);
+    
+    if html_content.trim().is_empty() {
+        return Ok("[]".to_string());
+    }
+    
+    let mut links = Vec::new();
+    let html_lower = html_content.to_lowercase();
+    
+    // Simple href extraction using string parsing
+    let mut pos = 0;
+    while let Some(href_pos) = html_lower[pos..].find("href=") {
+        let start = pos + href_pos + 5; // After "href="
+        
+        if start >= html_content.len() {
+            break;
+        }
+        
+        // Determine quote type
+        let quote_char = html_content.chars().nth(start);
+        let (quote, offset) = match quote_char {
+            Some('"') => ('"', 1),
+            Some('\'') => ('\'', 1),
+            _ => (' ', 0), // No quotes
+        };
+        
+        let link_start = start + offset;
+        if link_start >= html_content.len() {
+            pos = start + 1;
+            continue;
+        }
+        
+        // Find end of href value
+        let remaining = &html_content[link_start..];
+        let end_pos = if offset > 0 {
+            remaining.find(quote).unwrap_or(remaining.len())
+        } else {
+            remaining.find(' ').unwrap_or(remaining.find('>').unwrap_or(remaining.len()))
+        };
+        
+        if end_pos > 0 {
+            let link = &remaining[..end_pos];
+            
+            // Filter out non-http links
+            if !link.starts_with('#') && 
+               !link.starts_with("mailto:") && 
+               !link.starts_with("tel:") && 
+               !link.starts_with("javascript:") &&
+               !link.is_empty() {
+                
+                // Build absolute URL
+                let absolute_url = if link.starts_with("http://") || link.starts_with("https://") {
+                    link.to_string()
+                } else if link.starts_with("//") {
+                    format!("https:{}", link)
+                } else if link.starts_with('/') {
+                    // Parse base URL to get origin
+                    if let Some(origin_end) = base_url.find("://") {
+                        let after_protocol = origin_end + 3;
+                        if let Some(path_start) = base_url[after_protocol..].find('/') {
+                            let origin = &base_url[..after_protocol + path_start];
+                            format!("{}{}", origin, link)
+                        } else {
+                            format!("{}{}", base_url, link)
+                        }
+                    } else {
+                        link.to_string()
+                    }
+                } else {
+                    // Relative URL
+                    let base_without_file = if let Some(last_slash) = base_url.rfind('/') {
+                        &base_url[..last_slash + 1]
+                    } else {
+                        &base_url
+                    };
+                    format!("{}{}", base_without_file, link)
+                };
+                
+                links.push(absolute_url);
+            }
+        }
+        
+        pos = link_start + end_pos + 1;
+    }
+    
+    // Remove duplicates and convert to JSON array
+    let mut unique_links: Vec<String> = links.into_iter()
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+    unique_links.sort();
+    
+    // Convert to JSON array string
+    let json_links = unique_links.iter()
+        .map(|link| format!("\"{}\"", link.replace("\"", "\\\"")))
+        .collect::<Vec<_>>()
+        .join(",");
+    
+    Ok(format!("[{}]", json_links))
+}
