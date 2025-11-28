@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
 
-function UrlInputPanel({ onProcessUrl, onProcessFile, disabled }) {
+function UrlInputPanel({ onProcessUrl, onCrawlAndProcess, onProcessFile, disabled }) {
   const [manualUrl, setManualUrl] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
 
-  const handleManualSubmit = (e) => {
+  const handleCrawlAndProcess = (e) => {
+    e.preventDefault();
+    if (manualUrl.trim()) {
+      onCrawlAndProcess(manualUrl);
+    }
+  };
+
+  const handleProcessOnly = (e) => {
     e.preventDefault();
     if (manualUrl.trim()) {
       onProcessUrl(manualUrl);
@@ -30,17 +37,23 @@ function UrlInputPanel({ onProcessUrl, onProcessFile, disabled }) {
   };
   return (
     <div className="url-input-panel">
-      <form onSubmit={handleManualSubmit} className="manual-url-form">        <input
+      <div className="manual-url-form">
+        <input
           type="text"
           value={manualUrl}
           onChange={(e) => setManualUrl(e.target.value)}
           placeholder="Masukkan URL secara manual"
           disabled={disabled}
         />
-        <button type="submit" disabled={disabled || !manualUrl.trim()}>
-          Proses URL Manual
-        </button>
-      </form>
+        <div className="button-group">
+          <button onClick={handleCrawlAndProcess} disabled={disabled || !manualUrl.trim()} className="crawl-button">
+            Crawl & Process
+          </button>
+          <button onClick={handleProcessOnly} disabled={disabled || !manualUrl.trim()} className="process-button">
+            Process Only
+          </button>
+        </div>
+      </div>
       
       <hr />        <div className="file-input-area">
         <label htmlFor="urlFile" className="file-label">
