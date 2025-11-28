@@ -1,5 +1,6 @@
 use wasm_bindgen::prelude::*;
 
+// WASM bindings for HTML to Markdown conversion and link extraction
 // Import the `console.log` function from the `console` module
 #[wasm_bindgen]
 extern "C" {
