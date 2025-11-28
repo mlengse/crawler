@@ -53,7 +53,6 @@ function ControlsPanel({
             className="retry-input"
           />
         </div>
-        <br />
         <div className="input-container">
           <label htmlFor="maxCrawlLinksInput">Maksimal Link Crawl:</label>
           <input
@@ -67,7 +66,6 @@ function ControlsPanel({
             className="retry-input"
           />
         </div>
-        <br />
         <div className="input-container">
           <label htmlFor="maxCrawlDepthInput">Kedalaman Crawl Maksimal:</label>
           <input

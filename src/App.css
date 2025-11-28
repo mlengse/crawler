@@ -219,8 +219,8 @@ main {
 /* Retry Controls */
 .controls-panel .retry-controls {
   display: flex;
-  align-items: center;
-  justify-content: flex-start;
+  flex-direction: column;
+  align-items: flex-start;
   margin: 10px 0;
 }
 
@@ -228,6 +228,7 @@ main {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-bottom: 12px;
 }
 
 .controls-panel .input-container label {
