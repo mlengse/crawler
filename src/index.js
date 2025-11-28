@@ -11,7 +11,7 @@ if ('serviceWorker' in navigator) {
     const swPath = `${process.env.PUBLIC_URL}/sw.js`;
     navigator.serviceWorker.register(swPath, { scope: '/' })
       .then(registration => {
-        console.log('Service Worker registered successfully:', registration.scope);
+        // console.log('Service Worker registered successfully:', registration.scope);
       })
       .catch(error => {
         console.error('Service Worker registration failed:', error);

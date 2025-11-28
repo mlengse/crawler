@@ -49,7 +49,7 @@ function App() {
   const [splitMergedFiles, setSplitMergedFiles] = useState(false); // State for splitting merged files
   const [urlsPerFile, setUrlsPerFile] = useState(10); // URLs per file when splitting
   const [maxRetries, setMaxRetries] = useState(3); // State for max retries
-  const [maxCrawlLinks, setMaxCrawlLinks] = useState(500); // State for max crawl links (increased default)
+  const [maxCrawlLinks, setMaxCrawlLinks] = useState(5000); // State for max crawl links (increased default)
   const [maxCrawlDepth, setMaxCrawlDepth] = useState(3); // State for max crawl depth (increased to 3)
   const [discoveredPaths, setDiscoveredPaths] = useState([]); // Discovered paths from crawl
   const [selectedPaths, setSelectedPaths] = useState([]); // User-selected paths to process
@@ -462,7 +462,7 @@ function App() {
         }
       }
       
-      console.log(`handleSaveMarkdown: ${successfulMarkdowns.length} successful, ${uniqueMarkdowns.length} unique URLs`);
+      // console.log(`handleSaveMarkdown: ${successfulMarkdowns.length} successful, ${uniqueMarkdowns.length} unique URLs`);
       
       if (saveMerged) {
         if (splitMergedFiles && urlsPerFile > 0) {
@@ -470,7 +470,7 @@ function App() {
           const totalFiles = Math.ceil(uniqueMarkdowns.length / urlsPerFile);
           const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
           
-          console.log(`Splitting ${uniqueMarkdowns.length} URLs into ${totalFiles} files (${urlsPerFile} URLs per file)`);
+          // console.log(`Splitting ${uniqueMarkdowns.length} URLs into ${totalFiles} files (${urlsPerFile} URLs per file)`);
           
           for (let i = 0; i < totalFiles; i++) {
             const startIdx = i * urlsPerFile;
@@ -685,13 +685,13 @@ function App() {
     // Try WASM first
     if (typeof window.process_html_to_markdown === 'function') {
       try {
-        console.log(`Using WASM for HTML to Markdown conversion: ${url}`);
-        const startTime = performance.now();
+        // console.log(`Using WASM for HTML to Markdown conversion: ${url}`);
+        // const startTime = performance.now();
         
         const markdown = window.process_html_to_markdown(htmlContent, url);
         
-        const endTime = performance.now();
-        console.log(`WASM HTML conversion took ${(endTime - startTime).toFixed(2)}ms`);
+        // const endTime = performance.now();
+        // console.log(`WASM HTML conversion took ${(endTime - startTime).toFixed(2)}ms`);
         
         return markdown;
       } catch (wasmError) {
@@ -699,7 +699,7 @@ function App() {
         // Fall through to JavaScript fallback
       }
     } else {
-      console.log(`WASM not available, using JavaScript for HTML to Markdown`);
+      // console.log(`WASM not available, using JavaScript for HTML to Markdown`);
     }
     
     // JavaScript fallback with enhanced HTML entity decoding
@@ -788,7 +788,7 @@ function App() {
     markdown += cleaned;
     
     const endTime = performance.now();
-    console.log(`JavaScript HTML conversion took ${(endTime - startTime).toFixed(2)}ms`);
+    // console.log(`JavaScript HTML conversion took ${(endTime - startTime).toFixed(2)}ms`);
     
     return markdown;
   };

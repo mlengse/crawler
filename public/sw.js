@@ -12,7 +12,7 @@ self.addEventListener('fetch', event => {
       !url.pathname.endsWith('.wasm') &&
       !url.pathname.endsWith('.json')) {
     
-    console.log('Service Worker intercepting request for:', event.request.url);
+    // console.log('Service Worker intercepting request for:', event.request.url);
     
     // Use the CORS proxy for external URLs
     event.respondWith(
