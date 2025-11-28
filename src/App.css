@@ -626,3 +626,142 @@ textarea {
   color: #65676b;
   font-style: italic;
 }
+
+/* Path Selection Panel */
+.path-selection-panel {
+  margin: 20px 0;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border: 2px solid #1877f2;
+  border-radius: 8px;
+}
+
+.path-selection-panel h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #1c1e21;
+  font-size: 1.1em;
+}
+
+.selection-controls {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+  flex-wrap: wrap;
+}
+
+.toggle-all-button,
+.process-selected-button,
+.cancel-button {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.toggle-all-button {
+  background-color: #f0f2f5;
+  color: #1c1e21;
+  border: 1px solid #ccd0d5;
+}
+
+.toggle-all-button:hover {
+  background-color: #e4e6ea;
+}
+
+.process-selected-button {
+  background-color: #42b883;
+  color: white;
+}
+
+.process-selected-button:hover:not(:disabled) {
+  background-color: #369870;
+}
+
+.process-selected-button:disabled {
+  background-color: #e4e6ea;
+  color: #bcc0c4;
+  cursor: not-allowed;
+}
+
+.cancel-button {
+  background-color: #ff6b35;
+  color: white;
+}
+
+.cancel-button:hover {
+  background-color: #e55a2b;
+}
+
+.paths-list {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background-color: white;
+  padding: 10px;
+}
+
+.path-item {
+  display: flex;
+  align-items: center;
+  padding: 8px;
+  margin-bottom: 4px;
+  border-radius: 4px;
+  transition: background-color 0.2s ease;
+}
+
+.path-item:hover {
+  background-color: #f8f9fa;
+}
+
+.path-item input[type="checkbox"] {
+  margin-right: 10px;
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.path-item label {
+  flex: 1;
+  cursor: pointer;
+  font-size: 14px;
+  color: #1c1e21;
+  word-break: break-all;
+}
+
+.pdf-badge {
+  display: inline-block;
+  background-color: #dc3545;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-right: 8px;
+}
+
+/* Button Group for Crawl & Process / Process Only */
+.button-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.crawl-button {
+  background-color: #42b883 !important;
+}
+
+.crawl-button:hover:not(:disabled) {
+  background-color: #369870 !important;
+}
+
+.process-button {
+  background-color: #1877f2 !important;
+}
+
+.process-button:hover:not(:disabled) {
+  background-color: #166fe5 !important;
+}
