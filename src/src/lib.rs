@@ -237,42 +237,81 @@ pub fn extract_links_from_html(html_content: String, base_url: String) -> Result
         if end_pos > 0 {
             let link = &remaining[..end_pos];
             
-            // Filter out non-http links
-            if !link.starts_with('#') && 
-               !link.starts_with("mailto:") && 
-               !link.starts_with("tel:") && 
-               !link.starts_with("javascript:") &&
-               !link.is_empty() {
-                
-                // Build absolute URL
-                let absolute_url = if link.starts_with("http://") || link.starts_with("https://") {
-                    link.to_string()
-                } else if link.starts_with("//") {
-                    format!("https:{}", link)
-                } else if link.starts_with('/') {
-                    // Parse base URL to get origin
-                    if let Some(origin_end) = base_url.find("://") {
-                        let after_protocol = origin_end + 3;
-                        if let Some(path_start) = base_url[after_protocol..].find('/') {
-                            let origin = &base_url[..after_protocol + path_start];
-                            format!("{}{}", origin, link)
-                        } else {
-                            format!("{}{}", base_url, link)
-                        }
+            // Filter out non-navigational links
+            if link.starts_with('#') || 
+               link.starts_with("mailto:") || 
+               link.starts_with("tel:") || 
+               link.starts_with("javascript:") ||
+               link.starts_with("data:") ||
+               link.is_empty() {
+                pos = link_start + end_pos + 1;
+                continue;
+            }
+            
+            // Build absolute URL
+            let absolute_url = if link.starts_with("http://") || link.starts_with("https://") {
+                link.to_string()
+            } else if link.starts_with("//") {
+                format!("https:{}", link)
+            } else if link.starts_with('/') {
+                // Parse base URL to get origin
+                if let Some(origin_end) = base_url.find("://") {
+                    let after_protocol = origin_end + 3;
+                    if let Some(path_start) = base_url[after_protocol..].find('/') {
+                        let origin = &base_url[..after_protocol + path_start];
+                        format!("{}{}", origin, link)
                     } else {
-                        link.to_string()
+                        format!("{}{}", base_url, link)
                     }
                 } else {
-                    // Relative URL
-                    let base_without_file = if let Some(last_slash) = base_url.rfind('/') {
-                        &base_url[..last_slash + 1]
-                    } else {
-                        &base_url
-                    };
-                    format!("{}{}", base_without_file, link)
+                    link.to_string()
+                }
+            } else {
+                // Relative URL
+                let base_without_file = if let Some(last_slash) = base_url.rfind('/') {
+                    &base_url[..last_slash + 1]
+                } else {
+                    &base_url
+                };
+                format!("{}{}", base_without_file, link)
+            };
+            
+            // Filter out non-HTML files by extension
+            let skip_extensions = [
+                ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".ico",
+                ".css", ".js", ".json", ".xml",
+                ".zip", ".tar", ".gz", ".rar", ".7z",
+                ".exe", ".dmg", ".iso", ".app",
+                ".mp4", ".mp3", ".avi", ".mov", ".wav",
+                ".ttf", ".woff", ".woff2", ".eot"
+            ];
+            
+            let url_lower = absolute_url.to_lowercase();
+            let should_skip = skip_extensions.iter().any(|ext| {
+                // Check if URL path ends with the extension (before query/hash)
+                if let Some(path_end) = url_lower.find('?').or_else(|| url_lower.find('#')) {
+                    url_lower[..path_end].ends_with(ext)
+                } else {
+                    url_lower.ends_with(ext)
+                }
+            });
+            
+            if !should_skip {
+                // Normalize URL: remove hash
+                let normalized = if let Some(hash_pos) = absolute_url.find('#') {
+                    absolute_url[..hash_pos].to_string()
+                } else {
+                    absolute_url
                 };
                 
-                links.push(absolute_url);
+                // Remove trailing slash for consistency (except root)
+                let final_url = if normalized.ends_with('/') && normalized.matches('/').count() > 3 {
+                    normalized[..normalized.len()-1].to_string()
+                } else {
+                    normalized
+                };
+                
+                links.push(final_url);
             }
         }
         
