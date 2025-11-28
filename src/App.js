@@ -448,16 +448,34 @@ function App() {
         return;
       }
       
+      // Deduplicate by URL to prevent duplicate files
+      const seenUrls = new Map();
+      const uniqueMarkdowns = [];
+      
+      for (const item of successfulMarkdowns) {
+        const normalizedUrl = normalizeUrl(item.url);
+        if (!seenUrls.has(normalizedUrl)) {
+          seenUrls.set(normalizedUrl, true);
+          uniqueMarkdowns.push(item);
+        } else {
+          console.warn(`Duplicate URL found in processedMarkdowns: ${item.url} (normalized: ${normalizedUrl})`);
+        }
+      }
+      
+      console.log(`handleSaveMarkdown: ${successfulMarkdowns.length} successful, ${uniqueMarkdowns.length} unique URLs`);
+      
       if (saveMerged) {
         if (splitMergedFiles && urlsPerFile > 0) {
           // Split into multiple merged files
-          const totalFiles = Math.ceil(successfulMarkdowns.length / urlsPerFile);
+          const totalFiles = Math.ceil(uniqueMarkdowns.length / urlsPerFile);
           const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+          
+          console.log(`Splitting ${uniqueMarkdowns.length} URLs into ${totalFiles} files (${urlsPerFile} URLs per file)`);
           
           for (let i = 0; i < totalFiles; i++) {
             const startIdx = i * urlsPerFile;
-            const endIdx = Math.min(startIdx + urlsPerFile, successfulMarkdowns.length);
-            const chunk = successfulMarkdowns.slice(startIdx, endIdx);
+            const endIdx = Math.min(startIdx + urlsPerFile, uniqueMarkdowns.length);
+            const chunk = uniqueMarkdowns.slice(startIdx, endIdx);
             
             const mergedContent = chunk
               .map(item => `## ${item.url}\n\n${item.markdown}`)
@@ -472,23 +490,23 @@ function App() {
           }
           
           setStatus({ 
-            message: `Menyimpan ${successfulMarkdowns.length} URL sebagai ${totalFiles} file gabungan (${urlsPerFile} URL per file)`, 
+            message: `Menyimpan ${uniqueMarkdowns.length} URL unik sebagai ${totalFiles} file gabungan (${urlsPerFile} URL per file)`, 
             type: 'success' 
           });
         } else {
           // Save all as one merged file
-          const mergedContent = successfulMarkdowns
+          const mergedContent = uniqueMarkdowns
             .map(item => `## ${item.url}\n\n${item.markdown}`)
             .join('\n\n---\n\n');
           
           const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
           const filename = `merged_urls_${timestamp}.md`;
           downloadFile(filename, mergedContent);
-          setStatus({ message: `Menyimpan ${successfulMarkdowns.length} URL sebagai file gabungan: ${filename}`, type: 'success' });
+          setStatus({ message: `Menyimpan ${uniqueMarkdowns.length} URL unik sebagai file gabungan: ${filename}`, type: 'success' });
         }
       } else {
         // Save each URL as separate file
-        successfulMarkdowns.forEach((item, index) => {
+        uniqueMarkdowns.forEach((item, index) => {
           const filename = generateFilenameFromUrl(item.url);
           const content = `# ${item.url}\n\n${item.markdown}`;
           
@@ -497,7 +515,7 @@ function App() {
             downloadFile(filename, content);
           }, index * 200);
         });
-        setStatus({ message: `Memulai unduhan ${successfulMarkdowns.length} file terpisah`, type: 'success' });
+        setStatus({ message: `Memulai unduhan ${uniqueMarkdowns.length} file terpisah`, type: 'success' });
       }
     } else if (urlsFromFile.length === 0 && lastProcessedUrl && markdownResult && !markdownResult.startsWith("Error:")) {
       // Single manual URL result
