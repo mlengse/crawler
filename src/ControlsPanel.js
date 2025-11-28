@@ -11,7 +11,9 @@ function ControlsPanel({
   onToggleSaveMerged,
   hasProcessedContent,
   maxRetries,
-  onMaxRetriesChange
+  onMaxRetriesChange,
+  maxCrawlLinks,
+  onMaxCrawlLinksChange
 }) {return (
     <div className="controls-panel">      <button
         onClick={onStartProcessingAll}
@@ -39,6 +41,19 @@ function ControlsPanel({
             max="10"
             value={maxRetries}
             onChange={(e) => onMaxRetriesChange(e.target.value)}
+            disabled={isProcessing}
+            className="retry-input"
+          />
+        </div>
+        <div className="input-container">
+          <label htmlFor="maxCrawlLinksInput">Maksimal Link Crawl:</label>
+          <input
+            type="number"
+            id="maxCrawlLinksInput"
+            min="1"
+            max="1000"
+            value={maxCrawlLinks}
+            onChange={(e) => onMaxCrawlLinksChange(e.target.value)}
             disabled={isProcessing}
             className="retry-input"
           />
