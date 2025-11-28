@@ -9,11 +9,17 @@ function ControlsPanel({
   onSaveMarkdown,
   saveMerged,
   onToggleSaveMerged,
+  splitMergedFiles,
+  onToggleSplitMerged,
+  urlsPerFile,
+  onUrlsPerFileChange,
   hasProcessedContent,
   maxRetries,
   onMaxRetriesChange,
   maxCrawlLinks,
-  onMaxCrawlLinksChange
+  onMaxCrawlLinksChange,
+  maxCrawlDepth,
+  onMaxCrawlDepthChange
 }) {return (
     <div className="controls-panel">      <button
         onClick={onStartProcessingAll}
@@ -58,6 +64,20 @@ function ControlsPanel({
             className="retry-input"
           />
         </div>
+        <div className="input-container">
+          <label htmlFor="maxCrawlDepthInput">Kedalaman Crawl Maksimal:</label>
+          <input
+            type="number"
+            id="maxCrawlDepthInput"
+            min="1"
+            max="5"
+            value={maxCrawlDepth}
+            onChange={(e) => onMaxCrawlDepthChange(e.target.value)}
+            disabled={isProcessing}
+            className="retry-input"
+            title="Level kedalaman crawling (1 = hanya halaman pertama, 2 = halaman + link di dalamnya, dst)"
+          />
+        </div>
       </div>
       
       <hr />
@@ -72,6 +92,38 @@ function ControlsPanel({
           />
           <label htmlFor="saveMergedCheckbox">Simpan gabungan dalam satu file</label>
         </div>
+        
+        {saveMerged && (
+          <div className="split-config">
+            <div className="checkbox-container">
+              <input
+                type="checkbox"
+                id="splitMergedCheckbox"
+                checked={splitMergedFiles}
+                onChange={onToggleSplitMerged}
+                disabled={isProcessing}
+              />
+              <label htmlFor="splitMergedCheckbox">Bagi menjadi beberapa file</label>
+            </div>
+            
+            {splitMergedFiles && (
+              <div className="input-container">
+                <label htmlFor="urlsPerFileInput">URL per File:</label>
+                <input
+                  type="number"
+                  id="urlsPerFileInput"
+                  min="1"
+                  max="100"
+                  value={urlsPerFile}
+                  onChange={(e) => onUrlsPerFileChange(e.target.value)}
+                  disabled={isProcessing}
+                  className="retry-input"
+                  title="Jumlah URL yang akan disimpan dalam setiap file"
+                />
+              </div>
+            )}
+          </div>
+        )}
         
         <button
           onClick={onSaveMarkdown}
