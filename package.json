@@ -35,7 +35,7 @@
     "prebuild": "npm run build:wasm",
     "build": "react-scripts build && cp public/sw.js build/",
     "build:wasm": "bash -c 'source $HOME/.cargo/env 2>/dev/null || true; cd src && wasm-pack build --target web --out-dir pkg'",
-    "build:vercel": "bash -c 'source $HOME/.cargo/env; npm run build:wasm && cp -r src/pkg/* public/ && react-scripts build && cp public/sw.js build/'",
+    "build:vercel": "bash -c 'source $HOME/.cargo/env; npm run build:wasm && cp src/pkg/*.js src/pkg/*.wasm src/pkg/*.ts public/ 2>/dev/null || true && react-scripts build && cp public/sw.js build/'",
     "test": "react-scripts test",
     "test:coverage": "react-scripts test --coverage --watchAll=false",
     "eject": "react-scripts eject",
