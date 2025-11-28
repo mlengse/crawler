@@ -49,12 +49,13 @@ function App() {
   const [splitMergedFiles, setSplitMergedFiles] = useState(false); // State for splitting merged files
   const [urlsPerFile, setUrlsPerFile] = useState(10); // URLs per file when splitting
   const [maxRetries, setMaxRetries] = useState(3); // State for max retries
-  const [maxCrawlLinks, setMaxCrawlLinks] = useState(100); // State for max crawl links
-  const [maxCrawlDepth, setMaxCrawlDepth] = useState(2); // State for max crawl depth
+  const [maxCrawlLinks, setMaxCrawlLinks] = useState(500); // State for max crawl links (increased default)
+  const [maxCrawlDepth, setMaxCrawlDepth] = useState(3); // State for max crawl depth (increased to 3)
   const [discoveredPaths, setDiscoveredPaths] = useState([]); // Discovered paths from crawl
   const [selectedPaths, setSelectedPaths] = useState([]); // User-selected paths to process
   const [showPathSelection, setShowPathSelection] = useState(false); // Show path selection UI
   const [crawlProgress, setCrawlProgress] = useState({ current: 0, total: 0, depth: 0 }); // Crawl progress tracking
+  const [crawlStats, setCrawlStats] = useState({ wasmCount: 0, domCount: 0, wasmTime: 0, domTime: 0 }); // Performance stats
 
   const processingPausedRef = useRef(isPaused);
   useEffect(() => { processingPausedRef.current = isPaused; }, [isPaused]);  useEffect(() => {
@@ -72,11 +73,18 @@ function App() {
           if (typeof wasmInit.default === 'function') {
             await wasmInit.default();
             
-            // Check if our function is available and bind it
+            // Check if our functions are available and bind them
             if (typeof wasmInit.process_html_to_markdown === 'function') {
               window.process_html_to_markdown = wasmInit.process_html_to_markdown;
+              
+              // Also bind the link extraction function
+              if (typeof wasmInit.extract_links_from_html === 'function') {
+                window.extract_links_from_html = wasmInit.extract_links_from_html;
+                console.log('WASM link extraction function loaded successfully');
+              }
+              
               setWasmInitialized(true);
-              setStatus({ message: 'WASM berhasil diinisialisasi. Siap memproses URL.', type: 'success' });
+              setStatus({ message: 'WASM berhasil diinisialisasi dengan fitur crawler. Siap memproses URL.', type: 'success' });
               return;
             }
           }
@@ -420,14 +428,14 @@ function App() {
 
   const handleMaxCrawlLinksChange = (newMaxCrawlLinks) => {
     const value = parseInt(newMaxCrawlLinks, 10);
-    if (value >= 1 && value <= 1000) {
+    if (value >= 1 && value <= 5000) {
       setMaxCrawlLinks(value);
     }
   };
 
   const handleMaxCrawlDepthChange = (newMaxCrawlDepth) => {
     const value = parseInt(newMaxCrawlDepth, 10);
-    if (value >= 1 && value <= 5) {
+    if (value >= 1 && value <= 10) {
       setMaxCrawlDepth(value);
     }
   };
@@ -521,6 +529,9 @@ function App() {
       let normalized = url;
       if (!/^https?:\/\//i.test(url)) normalized = `https://${url}`;
       const urlObj = new URL(normalized);
+      
+      // Reset stats
+      setCrawlStats({ wasmCount: 0, domCount: 0, wasmTime: 0, domTime: 0 });
       
       setStatus({ message: `Mencari semua halaman di ${urlObj.origin} (kedalaman maksimal: ${maxCrawlDepth})...`, type: 'info' });
       const discovered = await crawlUrlsDeep(urlObj.origin, maxCrawlDepth);
@@ -618,6 +629,39 @@ function App() {
     }
   };
 
+  // Normalize URL for deduplication
+  const normalizeUrl = (urlString) => {
+    try {
+      const url = new URL(urlString);
+      
+      // Remove hash/fragment
+      url.hash = '';
+      
+      // Remove trailing slash except for root path
+      if (url.pathname !== '/' && url.pathname.endsWith('/')) {
+        url.pathname = url.pathname.slice(0, -1);
+      }
+      
+      // Sort query parameters for consistency
+      if (url.search) {
+        const params = new URLSearchParams(url.search);
+        const sortedParams = new URLSearchParams();
+        [...params.keys()].sort().forEach(key => {
+          params.getAll(key).forEach(value => sortedParams.append(key, value));
+        });
+        url.search = sortedParams.toString();
+      }
+      
+      // Convert to lowercase for case-insensitive comparison
+      const normalized = url.toString().toLowerCase();
+      
+      return normalized;
+    } catch (e) {
+      console.warn(`Failed to normalize URL: ${urlString}`, e);
+      return urlString.toLowerCase();
+    }
+  };
+
   // Extract links from a single page
   const extractLinksFromPage = async (url, baseOrigin) => {
     try {
@@ -628,43 +672,127 @@ function App() {
       }
       const html = await response.text();
       
-      // Parse and extract <a> hrefs
+      // Try WASM first for better performance
+      if (typeof window.extract_links_from_html === 'function') {
+        try {
+          console.log(`Using WASM to extract links from ${url}`);
+          const startTime = performance.now();
+          
+          const jsonResult = window.extract_links_from_html(html, url);
+          const wasmLinks = JSON.parse(jsonResult);
+          
+          const endTime = performance.now();
+          console.log(`WASM extraction took ${(endTime - startTime).toFixed(2)}ms`);
+          
+          // Update stats
+          setCrawlStats(prev => ({
+            ...prev,
+            wasmCount: prev.wasmCount + 1,
+            wasmTime: prev.wasmTime + (endTime - startTime)
+          }));
+          
+          // Filter by origin (WASM returns all same-origin links already)
+          const filteredLinks = wasmLinks.filter(link => {
+            try {
+              return new URL(link).origin === baseOrigin;
+            } catch (e) {
+              return false;
+            }
+          });
+          
+          // Deduplicate using normalized URLs
+          const seenNormalized = new Set();
+          const uniqueLinks = [];
+          
+          for (const link of filteredLinks) {
+            const normalized = normalizeUrl(link);
+            if (!seenNormalized.has(normalized)) {
+              seenNormalized.add(normalized);
+              uniqueLinks.push(link);
+            }
+          }
+          
+          console.log(`WASM: ${wasmLinks.length} links found, ${filteredLinks.length} after origin filter, ${uniqueLinks.length} after deduplication`);
+          return uniqueLinks;
+          
+        } catch (wasmError) {
+          console.warn(`WASM extraction failed for ${url}, falling back to DOM Parser:`, wasmError);
+          // Fall through to DOM Parser fallback
+        }
+      } else {
+        console.log(`WASM not available, using DOM Parser for ${url}`);
+      }
+      
+      // Fallback: Use DOM Parser (JavaScript)
+      const startTime = performance.now();
       const parser = new DOMParser();
       const doc = parser.parseFromString(html, 'text/html');
       const anchors = Array.from(doc.querySelectorAll('a[href]'));
       
+      console.log(`DOM Parser: extracting links from ${url}: found ${anchors.length} anchor tags`);
+      
+      // Use Set to track normalized URLs for deduplication
+      const seenNormalized = new Set();
+      const uniqueLinks = [];
+      
       const links = anchors
         .map(a => a.getAttribute('href'))
-        .filter(href => href && !href.startsWith('#') && !href.startsWith('mailto:') && !href.startsWith('tel:') && !href.startsWith('javascript:'))
+        .filter(href => {
+          if (!href) return false;
+          // Filter out non-navigational links
+          const skipPrefixes = ['#', 'mailto:', 'tel:', 'javascript:', 'data:'];
+          return !skipPrefixes.some(prefix => href.startsWith(prefix));
+        })
         .map(href => {
           try {
             return new URL(href, url).toString();
           } catch (e) {
+            console.warn(`Invalid URL: ${href} on page ${url}`);
             return null;
           }
         })
         .filter(u => u !== null)
         .filter(u => {
           try { 
-            return new URL(u).origin === baseOrigin; 
+            const urlObj = new URL(u);
+            // Only keep same-origin links
+            return urlObj.origin === baseOrigin;
           } catch (e) { 
             return false; 
           }
         })
         .filter(u => {
           // Drop likely binary/non-HTML assets by extension (except PDF which we handle separately)
-          const skipExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.zip', '.tar', '.gz', '.exe', '.dmg', '.iso'];
-          const path = new URL(u).pathname.toLowerCase();
-          return !skipExt.some(ext => path.endsWith(ext));
-        })
-        .map(u => {
-          // Normalize: remove fragment only
-          const nu = new URL(u);
-          nu.hash = '';
-          return nu.toString();
+          const skipExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', 
+                          '.css', '.js', '.json', '.xml', 
+                          '.zip', '.tar', '.gz', '.rar', '.7z',
+                          '.exe', '.dmg', '.iso', '.app',
+                          '.mp4', '.mp3', '.avi', '.mov', '.wav',
+                          '.ttf', '.woff', '.woff2', '.eot'];
+          const pathname = new URL(u).pathname.toLowerCase();
+          return !skipExt.some(ext => pathname.endsWith(ext));
         });
+      
+      // Deduplicate using normalized URLs
+      for (const link of links) {
+        const normalized = normalizeUrl(link);
+        if (!seenNormalized.has(normalized)) {
+          seenNormalized.add(normalized);
+          uniqueLinks.push(link); // Keep original URL format but track normalized
+        }
+      }
 
-      return Array.from(new Set(links));
+      const endTime = performance.now();
+      console.log(`DOM Parser: ${(endTime - startTime).toFixed(2)}ms, ${uniqueLinks.length} valid unique links from ${url}`);
+      
+      // Update stats
+      setCrawlStats(prev => ({
+        ...prev,
+        domCount: prev.domCount + 1,
+        domTime: prev.domTime + (endTime - startTime)
+      }));
+      
+      return uniqueLinks;
     } catch (err) {
       console.error(`extractLinksFromPage error for ${url}:`, err);
       return [];
@@ -674,22 +802,28 @@ function App() {
   // Deep crawl with maximum depth - crawls ALL links recursively
   const crawlUrlsDeep = async (startUrl, depth = maxCrawlDepth) => {
     const baseOrigin = new URL(startUrl).origin;
-    const visited = new Set();
-    const allUrls = new Set();
+    const visited = new Set(); // Stores normalized URLs
+    const allUrls = new Map(); // Maps normalized URL -> original URL
+    const queued = new Set(); // Tracks normalized URLs already in queue
     const queue = [{ url: startUrl, currentDepth: 0 }];
     
+    const startNormalized = normalizeUrl(startUrl);
+    queued.add(startNormalized);
     setCrawlProgress({ current: 0, total: 1, depth: 0 });
+    
+    console.log(`Starting deep crawl of ${startUrl} with max depth ${depth}`);
     
     while (queue.length > 0 && allUrls.size < maxCrawlLinks) {
       const { url, currentDepth } = queue.shift();
+      const normalizedUrl = normalizeUrl(url);
       
       // Skip if already visited or exceeds depth
-      if (visited.has(url) || currentDepth > depth) {
+      if (visited.has(normalizedUrl) || currentDepth > depth) {
         continue;
       }
       
-      visited.add(url);
-      allUrls.add(url);
+      visited.add(normalizedUrl);
+      allUrls.set(normalizedUrl, url); // Store original URL format
       
       // Update progress
       setCrawlProgress({ 
@@ -703,35 +837,54 @@ function App() {
         type: 'info' 
       });
       
+      console.log(`Crawling [depth ${currentDepth}]: ${url} (${visited.size} visited, ${queue.length} queued)`);
+      
       // If we haven't reached max depth, crawl this page for more links
       if (currentDepth < depth) {
         const links = await extractLinksFromPage(url, baseOrigin);
+        console.log(`Found ${links.length} links on ${url}`);
         
         // Add new links to queue
+        let addedCount = 0;
         for (const link of links) {
-          if (!visited.has(link) && !queue.find(item => item.url === link)) {
+          const linkNormalized = normalizeUrl(link);
+          if (!visited.has(linkNormalized) && !queued.has(linkNormalized)) {
             queue.push({ url: link, currentDepth: currentDepth + 1 });
+            queued.add(linkNormalized);
+            addedCount++;
           }
         }
+        console.log(`Added ${addedCount} new unique links to queue (${links.length - addedCount} were duplicates)`);
       }
       
       // Small delay to avoid overwhelming the server
       await new Promise(resolve => setTimeout(resolve, 100));
     }
     
-    // Filter out root path if needed
-    const filteredUrls = Array.from(allUrls).filter(u => {
-      const path = new URL(u).pathname;
-      return path && path !== '/';
-    });
+    console.log(`Crawl complete: visited ${visited.size} unique pages, found ${allUrls.size} total URLs`);
+    
+    // Log performance stats
+    if (crawlStats.wasmCount > 0 || crawlStats.domCount > 0) {
+      const avgWasm = crawlStats.wasmCount > 0 ? (crawlStats.wasmTime / crawlStats.wasmCount).toFixed(2) : 0;
+      const avgDom = crawlStats.domCount > 0 ? (crawlStats.domTime / crawlStats.domCount).toFixed(2) : 0;
+      console.log(`Performance Stats - WASM: ${crawlStats.wasmCount} pages (avg ${avgWasm}ms), DOM: ${crawlStats.domCount} pages (avg ${avgDom}ms)`);
+      
+      if (crawlStats.wasmCount > 0 && crawlStats.domCount > 0) {
+        const speedup = (crawlStats.domTime / crawlStats.domCount) / (crawlStats.wasmTime / crawlStats.wasmCount);
+        console.log(`WASM is ${speedup.toFixed(2)}x faster than DOM Parser`);
+      }
+    }
+    
+    // Return original URLs (not normalized)
+    const finalUrls = Array.from(allUrls.values());
     
     // Count PDFs
-    const pdfCount = filteredUrls.filter(u => u.toLowerCase().endsWith('.pdf')).length;
+    const pdfCount = finalUrls.filter(u => u.toLowerCase().endsWith('.pdf')).length;
     
     return { 
-      urls: filteredUrls.slice(0, maxCrawlLinks), 
+      urls: finalUrls.slice(0, maxCrawlLinks), 
       pdfCount,
-      totalFound: filteredUrls.length,
+      totalFound: finalUrls.length,
       visited: visited.size
     };
   };
