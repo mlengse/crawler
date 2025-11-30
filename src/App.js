@@ -146,6 +146,7 @@ function App() {
   const [maxRetries, setMaxRetries] = useState(3); // State for max retries
   const [maxCrawlLinks, setMaxCrawlLinks] = useState(5000); // State for max crawl links (increased default)
   const [maxCrawlDepth, setMaxCrawlDepth] = useState(3); // State for max crawl depth (increased to 3)
+  const [concurrency, setConcurrency] = useState(5); // State for crawl concurrency
   const [discoveredPaths, setDiscoveredPaths] = useState([]); // Discovered paths from crawl
   const [selectedPaths, setSelectedPaths] = useState([]); // User-selected paths to process
   const [showPathSelection, setShowPathSelection] = useState(false); // Show path selection UI
@@ -532,6 +533,13 @@ function App() {
     const value = parseInt(newMaxCrawlDepth, 10);
     if (value >= 1 && value <= 10) {
       setMaxCrawlDepth(value);
+    }
+  };
+
+  const handleConcurrencyChange = (newConcurrency) => {
+    const value = parseInt(newConcurrency, 10);
+    if (value >= 1 && value <= 20) {
+      setConcurrency(value);
     }
   };
 
@@ -1086,7 +1094,7 @@ function App() {
     }
   };
 
-  // Deep crawl with maximum depth - crawls ALL links recursively
+  // Deep crawl with maximum depth - crawls ALL links recursively with concurrency
   const crawlUrlsDeep = async (startUrl, depth = maxCrawlDepth) => {
     const baseOrigin = new URL(startUrl).origin;
     const visited = new Set(); // Stores normalized URLs
@@ -1097,58 +1105,94 @@ function App() {
     const startNormalized = normalizeUrl(startUrl);
     queued.add(startNormalized);
     setCrawlProgress({ current: 0, total: 1, depth: 0 });
+
+    // Track active requests
+    let activeRequests = 0;
     
-    // console.log(`Starting deep crawl of ${startUrl} with max depth ${depth}`);
-    
-    while (queue.length > 0 && allUrls.size < maxCrawlLinks) {
-      const { url, currentDepth } = queue.shift();
+    // Function to process a single URL
+    const processUrl = async (urlItem) => {
+      const { url, currentDepth } = urlItem;
       const normalizedUrl = normalizeUrl(url);
       
       // Skip if already visited or exceeds depth
       if (visited.has(normalizedUrl) || currentDepth > depth) {
-        continue;
+        return;
       }
       
       visited.add(normalizedUrl);
       allUrls.set(normalizedUrl, url); // Store original URL format
       
-      // Update progress
-      setCrawlProgress({ 
-        current: visited.size, 
-        total: visited.size + queue.length, 
-        depth: currentDepth 
-      });
-      
-      setStatus({ 
-        message: `Crawling (kedalaman ${currentDepth}/${depth}): ${visited.size} halaman ditemukan, ${queue.length} dalam antrian...`, 
-        type: 'info' 
-      });
-      
-      // console.log(`Crawling [depth ${currentDepth}]: ${url} (${visited.size} visited, ${queue.length} queued)`);
-      
       // If we haven't reached max depth, crawl this page for more links
       if (currentDepth < depth) {
         const links = await extractLinksFromPage(url, baseOrigin);
-        // console.log(`Found ${links.length} links on ${url}`);
         
         // Add new links to queue
-        let addedCount = 0;
         for (const link of links) {
           const linkNormalized = normalizeUrl(link);
           if (!visited.has(linkNormalized) && !queued.has(linkNormalized)) {
-            queue.push({ url: link, currentDepth: currentDepth + 1 });
-            queued.add(linkNormalized);
-            addedCount++;
+            // Check if we reached the max links limit
+            if (allUrls.size + queued.size < maxCrawlLinks) {
+              queue.push({ url: link, currentDepth: currentDepth + 1 });
+              queued.add(linkNormalized);
+            }
           }
         }
-        // console.log(`Added ${addedCount} new unique links to queue (${links.length - addedCount} were duplicates)`);
       }
+    };
+
+    // Main loop processing the queue with concurrency
+    await new Promise((resolve) => {
+      const next = () => {
+        // Update status UI
+        if (visited.size % 5 === 0 || queue.length === 0) {
+          setCrawlProgress({
+            current: visited.size,
+            total: visited.size + queue.length,
+            depth: depth // Just show max depth as context
+          });
+
+          setStatus({
+            message: `Crawling (active: ${activeRequests}): ${visited.size} halaman ditemukan, ${queue.length} dalam antrian...`,
+            type: 'info'
+          });
+        }
+
+        // Check if we are done: no active requests and empty queue
+        if (activeRequests === 0 && queue.length === 0) {
+          resolve();
+          return;
+        }
+
+        // Check if we reached the max limit
+        if (allUrls.size >= maxCrawlLinks) {
+          // Allow active requests to finish, but don't start new ones
+          if (activeRequests === 0) {
+            resolve();
+          }
+          return;
+        }
+
+        // Fill active slots
+        while (activeRequests < concurrency && queue.length > 0 && allUrls.size < maxCrawlLinks) {
+          const item = queue.shift();
+          activeRequests++;
+
+          processUrl(item)
+            .then(() => {
+              activeRequests--;
+              next(); // Trigger next iteration when a request finishes
+            })
+            .catch(err => {
+              console.error(`Error processing ${item.url}:`, err);
+              activeRequests--;
+              next();
+            });
+        }
+      };
       
-      // Small delay to avoid overwhelming the server
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    // console.log(`Crawl complete: visited ${visited.size} unique pages, found ${allUrls.size} total URLs`);
+      // Start the process
+      next();
+    });
     
     // Log performance stats
     if (crawlStats.wasmCount > 0 || crawlStats.domCount > 0) {
@@ -1346,6 +1390,8 @@ function App() {
               onMaxCrawlLinksChange={handleMaxCrawlLinksChange}
               maxCrawlDepth={maxCrawlDepth}
               onMaxCrawlDepthChange={handleMaxCrawlDepthChange}
+              concurrency={concurrency}
+              onConcurrencyChange={handleConcurrencyChange}
               saveFormat={saveFormat}
               onSaveFormatChange={handleSaveFormatChange}
           />
