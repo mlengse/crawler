@@ -43,6 +43,7 @@ function UrlInputPanel({ onProcessUrl, onCrawlAndProcess, onProcessFile, disable
           value={manualUrl}
           onChange={(e) => setManualUrl(e.target.value)}
           placeholder="Masukkan URL secara manual"
+          aria-label="Masukkan URL secara manual"
           disabled={disabled}
         />
         <div className="button-group">
