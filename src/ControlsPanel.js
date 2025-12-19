@@ -20,6 +20,8 @@ function ControlsPanel({
   onMaxCrawlLinksChange,
   maxCrawlDepth,
   onMaxCrawlDepthChange,
+  concurrency,
+  onConcurrencyChange,
   saveFormat,
   onSaveFormatChange
 }) {
@@ -80,6 +82,20 @@ function ControlsPanel({
             disabled={isProcessing}
             className="retry-input"
             title="Level kedalaman crawling (1 = hanya halaman pertama, 2 = halaman + link di dalamnya, dst)"
+          />
+        </div>
+        <div className="input-container">
+          <label htmlFor="concurrencyInput">Konkurensi Crawling:</label>
+          <input
+            type="number"
+            id="concurrencyInput"
+            min="1"
+            max="20"
+            value={concurrency}
+            onChange={(e) => onConcurrencyChange(e.target.value)}
+            disabled={isProcessing}
+            className="retry-input"
+            title="Jumlah halaman yang di-crawl secara bersamaan (default: 5)"
           />
         </div>
       </div>
