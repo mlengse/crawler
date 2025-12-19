@@ -56,4 +56,4 @@ function PreviewPanel({ markdownContent, lastProcessedUrl }) {
   );
 }
 
-export default PreviewPanel;
+export default React.memo(PreviewPanel);
