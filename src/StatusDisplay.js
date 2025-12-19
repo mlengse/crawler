@@ -12,4 +12,4 @@ function StatusDisplay({ message, type }) {
   );
 }
 
-export default StatusDisplay;
+export default React.memo(StatusDisplay);

@@ -75,4 +75,4 @@ function UrlInputPanel({ onProcessUrl, onCrawlAndProcess, onProcessFile, disable
   );
 }
 
-export default UrlInputPanel;
+export default React.memo(UrlInputPanel);

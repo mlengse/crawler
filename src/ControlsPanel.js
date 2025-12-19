@@ -186,4 +186,4 @@ function ControlsPanel({
   );
 }
 
-export default ControlsPanel;
+export default React.memo(ControlsPanel);

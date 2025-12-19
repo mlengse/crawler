@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './App.css';
 import UrlInputPanel from './UrlInputPanel';
 import StatusDisplay from './StatusDisplay';
 import PreviewPanel from './PreviewPanel';
 import ControlsPanel from './ControlsPanel';
+import { convertHtmlToMarkdownJS, getDOMParser } from './markdownUtils';
 
 // Helper function to trigger browser download
 function downloadFile(filename, content) {
@@ -202,51 +203,7 @@ function App() {
         console.warn('Using JavaScript fallback for HTML to Markdown conversion');
         
         window.process_html_to_markdown = (html, url) => {
-          // Enhanced JavaScript-based HTML to markdown conversion
-          let markdown = `# Konten dari: ${url}\n\n`;
-          
-          // Remove script and style tags
-          html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-          html = html.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
-          
-          // Convert basic HTML tags to markdown
-          markdown += html
-            .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n')
-            .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n')
-            .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n')
-            .replace(/<h4[^>]*>(.*?)<\/h4>/gi, '#### $1\n\n')
-            .replace(/<h5[^>]*>(.*?)<\/h5>/gi, '##### $1\n\n')
-            .replace(/<h6[^>]*>(.*?)<\/h6>/gi, '###### $1\n\n')
-            .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
-            .replace(/<br\s*\/?>/gi, '\n')
-            .replace(/<a[^>]*href=["']([^"']*)["'][^>]*>(.*?)<\/a>/gi, '[$2]($1)')
-            .replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**')
-            .replace(/<b[^>]*>(.*?)<\/b>/gi, '**$1**')
-            .replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*')
-            .replace(/<i[^>]*>(.*?)<\/i>/gi, '*$1*')
-            .replace(/<code[^>]*>(.*?)<\/code>/gi, '`$1`')
-            .replace(/<pre[^>]*>(.*?)<\/pre>/gi, '```\n$1\n```\n\n')
-            .replace(/<ul[^>]*>(.*?)<\/ul>/gi, (match, content) => {
-              return content.replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n') + '\n';
-            })
-            .replace(/<ol[^>]*>(.*?)<\/ol>/gi, (match, content) => {
-              let counter = 1;
-              return content.replace(/<li[^>]*>(.*?)<\/li>/gi, () => `${counter++}. $1\n`) + '\n';
-            })
-            .replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gi, '> $1\n\n')
-            .replace(/<img[^>]*src=["']([^"']*)["'][^>]*alt=["']([^"']*)["'][^>]*>/gi, '![$2]($1)')
-            .replace(/<img[^>]*src=["']([^"']*)["'][^>]*>/gi, '![]($1)')
-            .replace(/<[^>]*>/g, '') // Remove remaining HTML tags
-            .replace(/&nbsp;/g, ' ')
-            .replace(/&amp;/g, '&')
-            .replace(/&lt;/g, '<')
-            .replace(/&gt;/g, '>')
-            .replace(/&quot;/g, '"')
-            .replace(/&#39;/g, "'")
-            .replace(/\n\s*\n\s*\n/g, '\n\n') // Clean up multiple newlines
-            .trim();
-          
-          return markdown;
+          return convertHtmlToMarkdownJS(html, url);
         };
         
         setWasmInitialized(true);
@@ -254,28 +211,7 @@ function App() {
         console.error("Error initializing WASM module:", err);
         // Fallback to JavaScript-based conversion
         window.process_html_to_markdown = (html, url) => {
-          // Simple HTML to markdown conversion as fallback
-          let markdown = `# Konten dari: ${url}\n\n`;
-          
-          // Remove script and style tags
-          html = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-          html = html.replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
-          
-          // Convert basic HTML tags
-          markdown += html
-            .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n')
-            .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n')
-            .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n')
-            .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
-            .replace(/<br\s*\/?>/gi, '\n')
-            .replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)')
-            .replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**')
-            .replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*')
-            .replace(/<[^>]*>/g, '') // Remove remaining HTML tags
-            .replace(/\n\s*\n\s*\n/g, '\n\n') // Clean up multiple newlines
-            .trim();
-          
-          return markdown;
+          return convertHtmlToMarkdownJS(html, url);
         };
         
         setWasmInitialized(true);
@@ -285,6 +221,343 @@ function App() {
     
     loadWasm();
   }, []);
+  // Normalize URL for deduplication
+  const normalizeUrl = (urlString) => {
+    try {
+      const url = new URL(urlString);
+
+      // Remove hash/fragment
+      url.hash = '';
+
+      // Remove trailing slash except for root path
+      if (url.pathname !== '/' && url.pathname.endsWith('/')) {
+        url.pathname = url.pathname.slice(0, -1);
+      }
+
+      // Sort query parameters for consistency
+      if (url.search) {
+        const params = new URLSearchParams(url.search);
+        const sortedParams = new URLSearchParams();
+        [...params.keys()].sort().forEach(key => {
+          params.getAll(key).forEach(value => sortedParams.append(key, value));
+        });
+        url.search = sortedParams.toString();
+      }
+
+      // Convert to lowercase for case-insensitive comparison
+      const normalized = url.toString().toLowerCase();
+
+      return normalized;
+    } catch (e) {
+      console.warn(`Failed to normalize URL: ${urlString}`, e);
+      return urlString.toLowerCase();
+    }
+  };
+
+  // Convert HTML to Markdown with WASM-first strategy
+  // Optimized to avoid recreation on every render and reuse DOM elements
+  const convertHtmlToMarkdown = (htmlContent, url) => {
+    // Try WASM first
+    if (typeof window.process_html_to_markdown === 'function') {
+      try {
+        const markdown = window.process_html_to_markdown(htmlContent, url);
+        return markdown;
+      } catch (wasmError) {
+        console.warn(`WASM HTML conversion failed, falling back to JavaScript:`, wasmError);
+        // Fall through to JavaScript fallback
+      }
+    }
+
+    // JavaScript fallback with enhanced HTML entity decoding
+    // Uses the shared function to avoid memory churn
+    return convertHtmlToMarkdownJS(htmlContent, url);
+  };
+
+  // Extract links from a single page
+  const extractLinksFromPage = async (url, baseOrigin) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        console.warn(`extractLinksFromPage: failed to fetch ${url}: ${response.status}`);
+        return [];
+      }
+      const html = await response.text();
+
+      // Try WASM first for better performance
+      if (typeof window.extract_links_from_html === 'function') {
+        try {
+          // console.log(`Using WASM to extract links from ${url}`);
+          const startTime = performance.now();
+
+          const jsonResult = window.extract_links_from_html(html, url);
+          const wasmLinks = JSON.parse(jsonResult);
+
+          const endTime = performance.now();
+          // console.log(`WASM extraction took ${(endTime - startTime).toFixed(2)}ms`);
+
+          // Update stats
+          setCrawlStats(prev => ({
+            ...prev,
+            wasmCount: prev.wasmCount + 1,
+            wasmTime: prev.wasmTime + (endTime - startTime)
+          }));
+
+          // Filter by origin (WASM returns all same-origin links already)
+          const filteredLinks = wasmLinks.filter(link => {
+            try {
+              return new URL(link).origin === baseOrigin;
+            } catch (e) {
+              return false;
+            }
+          });
+
+          // Deduplicate using normalized URLs
+          const seenNormalized = new Set();
+          const uniqueLinks = [];
+
+          for (const link of filteredLinks) {
+            const normalized = normalizeUrl(link);
+            if (!seenNormalized.has(normalized)) {
+              seenNormalized.add(normalized);
+              uniqueLinks.push(link);
+            }
+          }
+
+          // console.log(`WASM: ${wasmLinks.length} links found, ${filteredLinks.length} after origin filter, ${uniqueLinks.length} after deduplication`);
+          return uniqueLinks;
+
+        } catch (wasmError) {
+          console.warn(`WASM extraction failed for ${url}, falling back to DOM Parser:`, wasmError);
+          // Fall through to DOM Parser fallback
+        }
+      } else {
+        // console.log(`WASM not available, using DOM Parser for ${url}`);
+      }
+
+      // Fallback: Use DOM Parser (JavaScript)
+      const startTime = performance.now();
+      const parser = getDOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const anchors = Array.from(doc.querySelectorAll('a[href]'));
+
+      // console.log(`DOM Parser: extracting links from ${url}: found ${anchors.length} anchor tags`);
+
+      // Use Set to track normalized URLs for deduplication
+      const seenNormalized = new Set();
+      const uniqueLinks = [];
+
+      const links = anchors
+        .map(a => a.getAttribute('href'))
+        .filter(href => {
+          if (!href) return false;
+          // Filter out non-navigational links
+          const skipPrefixes = ['#', 'mailto:', 'tel:', 'javascript:', 'data:'];
+          return !skipPrefixes.some(prefix => href.startsWith(prefix));
+        })
+        .map(href => {
+          try {
+            return new URL(href, url).toString();
+          } catch (e) {
+            console.warn(`Invalid URL: ${href} on page ${url}`);
+            return null;
+          }
+        })
+        .filter(u => u !== null)
+        .filter(u => {
+          try {
+            const urlObj = new URL(u);
+            // Only keep same-origin links
+            return urlObj.origin === baseOrigin;
+          } catch (e) {
+            return false;
+          }
+        })
+        .filter(u => {
+          // Drop likely binary/non-HTML assets by extension (except PDF which we handle separately)
+          const skipExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico',
+                          '.css', '.js', '.json', '.xml',
+                          '.zip', '.tar', '.gz', '.rar', '.7z',
+                          '.exe', '.dmg', '.iso', '.app',
+                          '.mp4', '.mp3', '.avi', '.mov', '.wav',
+                          '.ttf', '.woff', '.woff2', '.eot'];
+          const pathname = new URL(u).pathname.toLowerCase();
+          return !skipExt.some(ext => pathname.endsWith(ext));
+        });
+
+      // Deduplicate using normalized URLs
+      for (const link of links) {
+        const normalized = normalizeUrl(link);
+        if (!seenNormalized.has(normalized)) {
+          seenNormalized.add(normalized);
+          uniqueLinks.push(link); // Keep original URL format but track normalized
+        }
+      }
+
+      const endTime = performance.now();
+      // console.log(`DOM Parser: ${(endTime - startTime).toFixed(2)}ms, ${uniqueLinks.length} valid unique links from ${url}`);
+
+      // Update stats
+      setCrawlStats(prev => ({
+        ...prev,
+        domCount: prev.domCount + 1,
+        domTime: prev.domTime + (endTime - startTime)
+      }));
+
+      return uniqueLinks;
+    } catch (err) {
+      console.error(`extractLinksFromPage error for ${url}:`, err);
+      return [];
+    }
+  };
+
+  // Deep crawl with maximum depth - crawls ALL links recursively
+  const crawlUrlsDeep = async (startUrl, depth = maxCrawlDepth) => {
+    const baseOrigin = new URL(startUrl).origin;
+    const visited = new Set(); // Stores normalized URLs
+    const allUrls = new Map(); // Maps normalized URL -> original URL
+    const queued = new Set(); // Tracks normalized URLs already in queue
+    const queue = [{ url: startUrl, currentDepth: 0 }];
+
+    const startNormalized = normalizeUrl(startUrl);
+    queued.add(startNormalized);
+    setCrawlProgress({ current: 0, total: 1, depth: 0 });
+
+    // console.log(`Starting deep crawl of ${startUrl} with max depth ${depth}`);
+
+    while (queue.length > 0 && allUrls.size < maxCrawlLinks) {
+      const { url, currentDepth } = queue.shift();
+      const normalizedUrl = normalizeUrl(url);
+
+      // Skip if already visited or exceeds depth
+      if (visited.has(normalizedUrl) || currentDepth > depth) {
+        continue;
+      }
+
+      visited.add(normalizedUrl);
+      allUrls.set(normalizedUrl, url); // Store original URL format
+
+      // Update progress
+      setCrawlProgress({
+        current: visited.size,
+        total: visited.size + queue.length,
+        depth: currentDepth
+      });
+
+      setStatus({
+        message: `Crawling (kedalaman ${currentDepth}/${depth}): ${visited.size} halaman ditemukan, ${queue.length} dalam antrian...`,
+        type: 'info'
+      });
+
+      // console.log(`Crawling [depth ${currentDepth}]: ${url} (${visited.size} visited, ${queue.length} queued)`);
+
+      // If we haven't reached max depth, crawl this page for more links
+      if (currentDepth < depth) {
+        const links = await extractLinksFromPage(url, baseOrigin);
+        // console.log(`Found ${links.length} links on ${url}`);
+
+        // Add new links to queue
+        let addedCount = 0;
+        for (const link of links) {
+          const linkNormalized = normalizeUrl(link);
+          if (!visited.has(linkNormalized) && !queued.has(linkNormalized)) {
+            queue.push({ url: link, currentDepth: currentDepth + 1 });
+            queued.add(linkNormalized);
+            addedCount++;
+          }
+        }
+        // console.log(`Added ${addedCount} new unique links to queue (${links.length - addedCount} were duplicates)`);
+      }
+
+      // Small delay to avoid overwhelming the server
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+
+    // console.log(`Crawl complete: visited ${visited.size} unique pages, found ${allUrls.size} total URLs`);
+
+    // Log performance stats
+    if (crawlStats.wasmCount > 0 || crawlStats.domCount > 0) {
+      // const avgWasm = crawlStats.wasmCount > 0 ? (crawlStats.wasmTime / crawlStats.wasmCount).toFixed(2) : 0;
+      // const avgDom = crawlStats.domCount > 0 ? (crawlStats.domTime / crawlStats.domCount).toFixed(2) : 0;
+      // console.log(`Performance Stats - WASM: ${crawlStats.wasmCount} pages (avg ${avgWasm}ms), DOM: ${crawlStats.domCount} pages (avg ${avgDom}ms)`);
+
+      if (crawlStats.wasmCount > 0 && crawlStats.domCount > 0) {
+        // const speedup = (crawlStats.domTime / crawlStats.domCount) / (crawlStats.wasmTime / crawlStats.wasmCount);
+        // console.log(`WASM is ${speedup.toFixed(2)}x faster than DOM Parser`);
+      }
+    }
+
+    // Return original URLs (not normalized)
+    const finalUrls = Array.from(allUrls.values());
+
+    // Count PDFs
+    const pdfCount = finalUrls.filter(u => u.toLowerCase().endsWith('.pdf')).length;
+
+    return {
+      urls: finalUrls.slice(0, maxCrawlLinks),
+      pdfCount,
+      totalFound: finalUrls.length,
+      visited: visited.size
+    };
+  };
+
+  // Legacy single-level crawl (kept for backward compatibility)
+  const crawlUrls = async (origin) => {
+    try {
+      const response = await fetch(origin);
+      if (!response.ok) {
+        console.warn(`crawlUrls: failed to fetch ${origin}: ${response.status}`);
+        return { urls: [], pdfCount: 0 };
+      }
+      const html = await response.text();
+      // Parse and extract <a> hrefs
+      const parser = getDOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const anchors = Array.from(doc.querySelectorAll('a[href]'));
+      const urls = anchors.map(a => a.getAttribute('href'))
+        .filter(href => href && !href.startsWith('#') && !href.startsWith('mailto:') && !href.startsWith('tel:') && !href.startsWith('javascript:'))
+        .map(href => {
+          try {
+            return new URL(href, origin).toString();
+          } catch (e) {
+            return null;
+          }
+        })
+        .filter(u => u !== null)
+        .filter(u => {
+          try { return new URL(u).origin === origin; } catch (e) { return false; }
+        })
+        .filter(u => {
+          // Drop likely binary/non-HTML assets by extension (except PDF which we handle separately)
+          const skipExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.zip', '.tar', '.gz', '.exe', '.dmg', '.iso'];
+          const path = new URL(u).pathname.toLowerCase();
+          return !skipExt.some(ext => path.endsWith(ext));
+        })
+        .map(u => {
+          // Normalize: remove fragment only
+          const nu = new URL(u);
+          nu.hash = '';
+          return nu.toString();
+        });
+
+      // Reduce to unique and only sub-paths (path not equal '/'), stable order
+      const unique = Array.from(new Set(urls)).filter(u => {
+        const p = new URL(u).pathname;
+        return p && p !== '/';
+      });
+
+      // Apply maxCrawlLinks limit
+      const limited = unique.slice(0, maxCrawlLinks);
+
+      // Count PDFs
+      const pdfCount = limited.filter(u => u.toLowerCase().endsWith('.pdf')).length;
+
+      return { urls: limited, pdfCount };
+    } catch (err) {
+      console.error('crawlUrls error', err);
+      return { urls: [], pdfCount: 0 };
+    }
+  };
+
   // Enhanced error handling and retry mechanism (from renderer.js)
   const processSingleUrl = async (url, isFromFile = false, maxRetriesOverride = null) => {
     const retriesToUse = maxRetriesOverride !== null ? maxRetriesOverride : maxRetries;
@@ -403,20 +676,7 @@ function App() {
             const htmlContent = await response.text();
             
             // Create a simplified HTML to markdown conversion
-            let markdown = `# Konten dari: ${url} (Dikonversi dengan metode fallback)\n\n`;
-            
-            // Basic HTML cleanup and conversion
-            markdown += htmlContent
-              .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-              .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-              .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n')
-              .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n')
-              .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n')
-              .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
-              .replace(/<a[^>]*href=["']([^"']*)["'][^>]*>(.*?)<\/a>/gi, '[$2]($1)')
-              .replace(/<br\s*\/?>/gi, '\n')
-              .replace(/<[^>]*>/g, '') // Remove remaining HTML tags
-              .replace(/\n\s*\n\s*\n/g, '\n\n'); // Clean up multiple newlines
+            const markdown = convertHtmlToMarkdownJS(htmlContent, url);
             
             return { url, markdown, html: htmlContent, usedFallback: true };
           } catch (fallbackError) {
@@ -500,52 +760,45 @@ function App() {
     } else {
       setStatus({ message, type: 'success' });
     }  };
-  const handleToggleSaveMerged = () => {
+  const handleToggleSaveMerged = useCallback(() => {
     setSaveMerged(prev => !prev);
-  };
+  }, []);
 
-  const handleToggleSplitMerged = () => {
+  const handleToggleSplitMerged = useCallback(() => {
     setSplitMergedFiles(prev => !prev);
-  };
+  }, []);
 
-  const handleUrlsPerFileChange = (newUrlsPerFile) => {
+  const handleUrlsPerFileChange = useCallback((newUrlsPerFile) => {
     const value = parseInt(newUrlsPerFile, 10);
     if (value >= 1 && value <= 100) {
       setUrlsPerFile(value);
     }
-  };
+  }, []);
 
-  const handleMaxRetriesChange = (newMaxRetries) => {
+  const handleMaxRetriesChange = useCallback((newMaxRetries) => {
     const value = parseInt(newMaxRetries, 10);
     if (value >= 1 && value <= 10) {
       setMaxRetries(value);
     }
-  };
+  }, []);
 
-  const handleMaxCrawlLinksChange = (newMaxCrawlLinks) => {
+  const handleMaxCrawlLinksChange = useCallback((newMaxCrawlLinks) => {
     const value = parseInt(newMaxCrawlLinks, 10);
     if (value >= 1 && value <= 5000) {
       setMaxCrawlLinks(value);
     }
-  };
+  }, []);
 
-  const handleMaxCrawlDepthChange = (newMaxCrawlDepth) => {
+  const handleMaxCrawlDepthChange = useCallback((newMaxCrawlDepth) => {
     const value = parseInt(newMaxCrawlDepth, 10);
     if (value >= 1 && value <= 10) {
       setMaxCrawlDepth(value);
     }
-  };
+  }, []);
 
-  const handleConcurrencyChange = (newConcurrency) => {
-    const value = parseInt(newConcurrency, 10);
-    if (value >= 1 && value <= 20) {
-      setConcurrency(value);
-    }
-  };
-
-  const handleSaveFormatChange = (format) => {
+  const handleSaveFormatChange = useCallback((format) => {
     setSaveFormat(format);
-  };
+  }, []);
   const handleSaveMarkdown = () => {
     const successfulMarkdowns = processedMarkdowns.filter(item => item && !item.error && item.markdown);
 
@@ -692,8 +945,9 @@ function App() {
   };
 
   // Handle manual URL processing (Process Only - no crawl)
-  const handleProcessManualUrl = async (url) => {
+  const handleProcessManualUrl = useCallback(async (url) => {
     const normalized = !/^https?:\/\//i.test(url) ? `https://${url}` : url;
+    // Note: processSingleUrl is currently not memoized as it has many dependencies
     const result = await processSingleUrl(normalized, false);
     if (result) {
       setMarkdownResult(result.markdown);
@@ -703,10 +957,10 @@ function App() {
         setStatus({ message: `Berhasil memproses: ${normalized}`, type: 'success' });
       }
     }
-  };
+  }, [processSingleUrl]);
 
   // Handle Crawl & Process
-  const handleCrawlAndProcess = async (url) => {
+  const handleCrawlAndProcess = useCallback(async (url) => {
     try {
       let normalized = url;
       if (!/^https?:\/\//i.test(url)) normalized = `https://${url}`;
@@ -716,6 +970,7 @@ function App() {
       setCrawlStats({ wasmCount: 0, domCount: 0, wasmTime: 0, domTime: 0 });
       
       setStatus({ message: `Mencari semua halaman di ${urlObj.origin} (kedalaman maksimal: ${maxCrawlDepth})...`, type: 'info' });
+      // Note: crawlUrlsDeep uses state (maxCrawlLinks)
       const discovered = await crawlUrlsDeep(urlObj.origin, maxCrawlDepth);
 
       if (!discovered || !discovered.urls || discovered.urls.length === 0) {
@@ -751,10 +1006,10 @@ function App() {
       console.warn('handleCrawlAndProcess: error', err);
       setStatus({ message: `Error: ${err.message}`, type: 'error' });
     }
-  };
+  }, [maxCrawlDepth, crawlUrlsDeep, processSingleUrl]);
 
   // Start processing selected paths
-  const handleProcessSelectedPaths = async () => {
+  const handleProcessSelectedPaths = useCallback(async () => {
     const selectedUrls = selectedPaths.map(idx => discoveredPaths[idx]);
     
     // Separate PDFs and HTML pages
@@ -789,10 +1044,10 @@ function App() {
       setShowPathSelection(false);
       setStatus({ message: `Selesai mengunduh ${pdfUrls.length} file PDF.`, type: 'success' });
     }
-  };
+  }, [selectedPaths, discoveredPaths, startProcessingAll]);
 
   // Toggle path selection
-  const handleTogglePathSelection = (index) => {
+  const handleTogglePathSelection = useCallback((index) => {
     setSelectedPaths(prev => {
       if (prev.includes(index)) {
         return prev.filter(i => i !== index);
@@ -800,491 +1055,25 @@ function App() {
         return [...prev, index].sort((a, b) => a - b);
       }
     });
-  };
+  }, []);
 
   // Select/deselect all paths
-  const handleToggleAllPaths = () => {
+  const handleToggleAllPaths = useCallback(() => {
     if (selectedPaths.length === discoveredPaths.length) {
       setSelectedPaths([]);
     } else {
       setSelectedPaths(discoveredPaths.map((_, idx) => idx));
     }
-  };
+  }, [selectedPaths.length, discoveredPaths.length, discoveredPaths]);
 
-  // Normalize URL for deduplication
-  const normalizeUrl = (urlString) => {
-    try {
-      const url = new URL(urlString);
-      
-      // Remove hash/fragment
-      url.hash = '';
-      
-      // Remove trailing slash except for root path
-      if (url.pathname !== '/' && url.pathname.endsWith('/')) {
-        url.pathname = url.pathname.slice(0, -1);
-      }
-      
-      // Sort query parameters for consistency
-      if (url.search) {
-        const params = new URLSearchParams(url.search);
-        const sortedParams = new URLSearchParams();
-        [...params.keys()].sort().forEach(key => {
-          params.getAll(key).forEach(value => sortedParams.append(key, value));
-        });
-        url.search = sortedParams.toString();
-      }
-      
-      // Convert to lowercase for case-insensitive comparison
-      const normalized = url.toString().toLowerCase();
-      
-      return normalized;
-    } catch (e) {
-      console.warn(`Failed to normalize URL: ${urlString}`, e);
-      return urlString.toLowerCase();
-    }
-  };
-
-  // Convert HTML to Markdown with WASM-first strategy
-  const convertHtmlToMarkdown = (htmlContent, url) => {
-    // Try WASM first
-    if (typeof window.process_html_to_markdown === 'function') {
-      try {
-        // console.log(`Using WASM for HTML to Markdown conversion: ${url}`);
-        // const startTime = performance.now();
-        
-        const markdown = window.process_html_to_markdown(htmlContent, url);
-        
-        // const endTime = performance.now();
-        // console.log(`WASM HTML conversion took ${(endTime - startTime).toFixed(2)}ms`);
-        
-        return markdown;
-      } catch (wasmError) {
-        console.warn(`WASM HTML conversion failed, falling back to JavaScript:`, wasmError);
-        // Fall through to JavaScript fallback
-      }
-    } else {
-      // console.log(`WASM not available, using JavaScript for HTML to Markdown`);
-    }
-    
-    // JavaScript fallback with enhanced HTML entity decoding
-    const startTime = performance.now();
-    
-    // Create a temporary element to decode HTML entities
-    const decodeHtmlEntities = (text) => {
-      const textarea = document.createElement('textarea');
-      textarea.innerHTML = text;
-      return textarea.value;
-    };
-    
-    let markdown = `# Content from: ${url}\n\n`;
-    
-    // Remove script and style tags
-    let cleaned = htmlContent
-      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-      .replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, '')
-      .replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, '')
-      .replace(/<aside\b[^<]*(?:(?!<\/aside>)<[^<]*)*<\/aside>/gi, '')
-      .replace(/<!--[\s\S]*?-->/g, ''); // Remove HTML comments
-    
-    // Convert headers
-    cleaned = cleaned
-      .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '\n# $1\n\n')
-      .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '\n## $1\n\n')
-      .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '\n### $1\n\n')
-      .replace(/<h4[^>]*>(.*?)<\/h4>/gi, '\n#### $1\n\n')
-      .replace(/<h5[^>]*>(.*?)<\/h5>/gi, '\n##### $1\n\n')
-      .replace(/<h6[^>]*>(.*?)<\/h6>/gi, '\n###### $1\n\n');
-    
-    // Convert paragraphs and line breaks
-    cleaned = cleaned
-      .replace(/<p[^>]*>(.*?)<\/p>/gi, '\n$1\n\n')
-      .replace(/<br\s*\/?>/gi, '\n');
-    
-    // Convert links
-    cleaned = cleaned
-      .replace(/<a[^>]*href=["']([^"']*)["'][^>]*>(.*?)<\/a>/gi, '[$2]($1)');
-    
-    // Convert emphasis
-    cleaned = cleaned
-      .replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**')
-      .replace(/<b[^>]*>(.*?)<\/b>/gi, '**$1**')
-      .replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*')
-      .replace(/<i[^>]*>(.*?)<\/i>/gi, '*$1*')
-      .replace(/<code[^>]*>(.*?)<\/code>/gi, '`$1`');
-    
-    // Convert code blocks
-    cleaned = cleaned
-      .replace(/<pre[^>]*>(.*?)<\/pre>/gi, '\n```\n$1\n```\n\n');
-    
-    // Convert lists
-    cleaned = cleaned
-      .replace(/<ul[^>]*>(.*?)<\/ul>/gis, (match, content) => {
-        return '\n' + content.replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n') + '\n';
-      })
-      .replace(/<ol[^>]*>(.*?)<\/ol>/gis, (match, content) => {
-        let counter = 1;
-        return '\n' + content.replace(/<li[^>]*>(.*?)<\/li>/gi, () => `${counter++}. $1\n`) + '\n';
-      });
-    
-    // Convert blockquotes
-    cleaned = cleaned
-      .replace(/<blockquote[^>]*>(.*?)<\/blockquote>/gi, '\n> $1\n\n');
-    
-    // Convert images
-    cleaned = cleaned
-      .replace(/<img[^>]*src=["']([^"']*)["'][^>]*alt=["']([^"']*)["'][^>]*>/gi, '![$2]($1)')
-      .replace(/<img[^>]*src=["']([^"']*)["'][^>]*>/gi, '![]($1)');
-    
-    // Remove remaining HTML tags
-    cleaned = cleaned.replace(/<[^>]*>/g, '');
-    
-    // Decode HTML entities
-    cleaned = decodeHtmlEntities(cleaned);
-    
-    // Clean up whitespace
-    cleaned = cleaned
-      .replace(/\n{3,}/g, '\n\n')  // Max 2 consecutive newlines
-      .replace(/[ \t]+/g, ' ')      // Multiple spaces to single space
-      .replace(/^\s+|\s+$/gm, '')   // Trim lines
-      .trim();
-    
-    markdown += cleaned;
-    
-    // const endTime = performance.now();
-    // console.log(`JavaScript HTML conversion took ${(endTime - startTime).toFixed(2)}ms`);
-    
-    return markdown;
-  };
-
-  // Extract links from a single page
-  const extractLinksFromPage = async (url, baseOrigin) => {
-    try {
-      const response = await fetch(url);
-      if (!response.ok) {
-        console.warn(`extractLinksFromPage: failed to fetch ${url}: ${response.status}`);
-        return [];
-      }
-      const html = await response.text();
-      
-      // Try WASM first for better performance
-      if (typeof window.extract_links_from_html === 'function') {
-        try {
-          // console.log(`Using WASM to extract links from ${url}`);
-          const startTime = performance.now();
-          
-          const jsonResult = window.extract_links_from_html(html, url);
-          const wasmLinks = JSON.parse(jsonResult);
-          
-          const endTime = performance.now();
-          // console.log(`WASM extraction took ${(endTime - startTime).toFixed(2)}ms`);
-          
-          // Update stats
-          setCrawlStats(prev => ({
-            ...prev,
-            wasmCount: prev.wasmCount + 1,
-            wasmTime: prev.wasmTime + (endTime - startTime)
-          }));
-          
-          // Filter by origin (WASM returns all same-origin links already)
-          const filteredLinks = wasmLinks.filter(link => {
-            try {
-              return new URL(link).origin === baseOrigin;
-            } catch (e) {
-              return false;
-            }
-          });
-          
-          // Deduplicate using normalized URLs
-          const seenNormalized = new Set();
-          const uniqueLinks = [];
-          
-          for (const link of filteredLinks) {
-            const normalized = normalizeUrl(link);
-            if (!seenNormalized.has(normalized)) {
-              seenNormalized.add(normalized);
-              uniqueLinks.push(link);
-            }
-          }
-          
-          // console.log(`WASM: ${wasmLinks.length} links found, ${filteredLinks.length} after origin filter, ${uniqueLinks.length} after deduplication`);
-          return uniqueLinks;
-          
-        } catch (wasmError) {
-          console.warn(`WASM extraction failed for ${url}, falling back to DOM Parser:`, wasmError);
-          // Fall through to DOM Parser fallback
-        }
-      } else {
-        // console.log(`WASM not available, using DOM Parser for ${url}`);
-      }
-      
-      // Fallback: Use DOM Parser (JavaScript)
-      const startTime = performance.now();
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      const anchors = Array.from(doc.querySelectorAll('a[href]'));
-      
-      // console.log(`DOM Parser: extracting links from ${url}: found ${anchors.length} anchor tags`);
-      
-      // Use Set to track normalized URLs for deduplication
-      const seenNormalized = new Set();
-      const uniqueLinks = [];
-      
-      const links = anchors
-        .map(a => a.getAttribute('href'))
-        .filter(href => {
-          if (!href) return false;
-          // Filter out non-navigational links
-          const skipPrefixes = ['#', 'mailto:', 'tel:', 'javascript:', 'data:'];
-          return !skipPrefixes.some(prefix => href.startsWith(prefix));
-        })
-        .map(href => {
-          try {
-            return new URL(href, url).toString();
-          } catch (e) {
-            console.warn(`Invalid URL: ${href} on page ${url}`);
-            return null;
-          }
-        })
-        .filter(u => u !== null)
-        .filter(u => {
-          try { 
-            const urlObj = new URL(u);
-            // Only keep same-origin links
-            return urlObj.origin === baseOrigin;
-          } catch (e) { 
-            return false; 
-          }
-        })
-        .filter(u => {
-          // Drop likely binary/non-HTML assets by extension (except PDF which we handle separately)
-          const skipExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.ico', 
-                          '.css', '.js', '.json', '.xml', 
-                          '.zip', '.tar', '.gz', '.rar', '.7z',
-                          '.exe', '.dmg', '.iso', '.app',
-                          '.mp4', '.mp3', '.avi', '.mov', '.wav',
-                          '.ttf', '.woff', '.woff2', '.eot'];
-          const pathname = new URL(u).pathname.toLowerCase();
-          return !skipExt.some(ext => pathname.endsWith(ext));
-        });
-      
-      // Deduplicate using normalized URLs
-      for (const link of links) {
-        const normalized = normalizeUrl(link);
-        if (!seenNormalized.has(normalized)) {
-          seenNormalized.add(normalized);
-          uniqueLinks.push(link); // Keep original URL format but track normalized
-        }
-      }
-
-      const endTime = performance.now();
-      // console.log(`DOM Parser: ${(endTime - startTime).toFixed(2)}ms, ${uniqueLinks.length} valid unique links from ${url}`);
-      
-      // Update stats
-      setCrawlStats(prev => ({
-        ...prev,
-        domCount: prev.domCount + 1,
-        domTime: prev.domTime + (endTime - startTime)
-      }));
-      
-      return uniqueLinks;
-    } catch (err) {
-      console.error(`extractLinksFromPage error for ${url}:`, err);
-      return [];
-    }
-  };
-
-  // Deep crawl with maximum depth - crawls ALL links recursively with concurrency
-  const crawlUrlsDeep = async (startUrl, depth = maxCrawlDepth) => {
-    const baseOrigin = new URL(startUrl).origin;
-    const visited = new Set(); // Stores normalized URLs
-    const allUrls = new Map(); // Maps normalized URL -> original URL
-    const queued = new Set(); // Tracks normalized URLs already in queue
-    const queue = [{ url: startUrl, currentDepth: 0 }];
-    
-    const startNormalized = normalizeUrl(startUrl);
-    queued.add(startNormalized);
-    setCrawlProgress({ current: 0, total: 1, depth: 0 });
-
-    // Track active requests
-    let activeRequests = 0;
-    
-    // Function to process a single URL
-    const processUrl = async (urlItem) => {
-      const { url, currentDepth } = urlItem;
-      const normalizedUrl = normalizeUrl(url);
-      
-      // Skip if already visited or exceeds depth
-      if (visited.has(normalizedUrl) || currentDepth > depth) {
-        return;
-      }
-      
-      visited.add(normalizedUrl);
-      allUrls.set(normalizedUrl, url); // Store original URL format
-      
-      // If we haven't reached max depth, crawl this page for more links
-      if (currentDepth < depth) {
-        const links = await extractLinksFromPage(url, baseOrigin);
-        
-        // Add new links to queue
-        for (const link of links) {
-          const linkNormalized = normalizeUrl(link);
-          if (!visited.has(linkNormalized) && !queued.has(linkNormalized)) {
-            // Check if we reached the max links limit
-            if (allUrls.size + queued.size < maxCrawlLinks) {
-              queue.push({ url: link, currentDepth: currentDepth + 1 });
-              queued.add(linkNormalized);
-            }
-          }
-        }
-      }
-    };
-
-    // Main loop processing the queue with concurrency
-    await new Promise((resolve) => {
-      const next = () => {
-        // Update status UI
-        if (visited.size % 5 === 0 || queue.length === 0) {
-          setCrawlProgress({
-            current: visited.size,
-            total: visited.size + queue.length,
-            depth: depth // Just show max depth as context
-          });
-
-          setStatus({
-            message: `Crawling (active: ${activeRequests}): ${visited.size} halaman ditemukan, ${queue.length} dalam antrian...`,
-            type: 'info'
-          });
-        }
-
-        // Check if we are done: no active requests and empty queue
-        if (activeRequests === 0 && queue.length === 0) {
-          resolve();
-          return;
-        }
-
-        // Check if we reached the max limit
-        if (allUrls.size >= maxCrawlLinks) {
-          // Allow active requests to finish, but don't start new ones
-          if (activeRequests === 0) {
-            resolve();
-          }
-          return;
-        }
-
-        // Fill active slots
-        while (activeRequests < concurrency && queue.length > 0 && allUrls.size < maxCrawlLinks) {
-          const item = queue.shift();
-          activeRequests++;
-
-          processUrl(item)
-            .then(() => {
-              activeRequests--;
-              next(); // Trigger next iteration when a request finishes
-            })
-            .catch(err => {
-              console.error(`Error processing ${item.url}:`, err);
-              activeRequests--;
-              next();
-            });
-        }
-      };
-      
-      // Start the process
-      next();
-    });
-    
-    // Log performance stats
-    if (crawlStats.wasmCount > 0 || crawlStats.domCount > 0) {
-      // const avgWasm = crawlStats.wasmCount > 0 ? (crawlStats.wasmTime / crawlStats.wasmCount).toFixed(2) : 0;
-      // const avgDom = crawlStats.domCount > 0 ? (crawlStats.domTime / crawlStats.domCount).toFixed(2) : 0;
-      // console.log(`Performance Stats - WASM: ${crawlStats.wasmCount} pages (avg ${avgWasm}ms), DOM: ${crawlStats.domCount} pages (avg ${avgDom}ms)`);
-      
-      if (crawlStats.wasmCount > 0 && crawlStats.domCount > 0) {
-        // const speedup = (crawlStats.domTime / crawlStats.domCount) / (crawlStats.wasmTime / crawlStats.wasmCount);
-        // console.log(`WASM is ${speedup.toFixed(2)}x faster than DOM Parser`);
-      }
-    }
-    
-    // Return original URLs (not normalized)
-    const finalUrls = Array.from(allUrls.values());
-    
-    // Count PDFs
-    const pdfCount = finalUrls.filter(u => u.toLowerCase().endsWith('.pdf')).length;
-    
-    return { 
-      urls: finalUrls.slice(0, maxCrawlLinks), 
-      pdfCount,
-      totalFound: finalUrls.length,
-      visited: visited.size
-    };
-  };
-
-  // Legacy single-level crawl (kept for backward compatibility)
-  const crawlUrls = async (origin) => {
-    try {
-      const response = await fetch(origin);
-      if (!response.ok) {
-        console.warn(`crawlUrls: failed to fetch ${origin}: ${response.status}`);
-        return { urls: [], pdfCount: 0 };
-      }
-      const html = await response.text();
-      // Parse and extract <a> hrefs
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      const anchors = Array.from(doc.querySelectorAll('a[href]'));
-      const urls = anchors.map(a => a.getAttribute('href'))
-        .filter(href => href && !href.startsWith('#') && !href.startsWith('mailto:') && !href.startsWith('tel:') && !href.startsWith('javascript:'))
-        .map(href => {
-          try {
-            return new URL(href, origin).toString();
-          } catch (e) {
-            return null;
-          }
-        })
-        .filter(u => u !== null)
-        .filter(u => {
-          try { return new URL(u).origin === origin; } catch (e) { return false; }
-        })
-        .filter(u => {
-          // Drop likely binary/non-HTML assets by extension (except PDF which we handle separately)
-          const skipExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.zip', '.tar', '.gz', '.exe', '.dmg', '.iso'];
-          const path = new URL(u).pathname.toLowerCase();
-          return !skipExt.some(ext => path.endsWith(ext));
-        })
-        .map(u => {
-          // Normalize: remove fragment only
-          const nu = new URL(u);
-          nu.hash = '';
-          return nu.toString();
-        });
-
-      // Reduce to unique and only sub-paths (path not equal '/'), stable order
-      const unique = Array.from(new Set(urls)).filter(u => {
-        const p = new URL(u).pathname;
-        return p && p !== '/';
-      });
-
-      // Apply maxCrawlLinks limit
-      const limited = unique.slice(0, maxCrawlLinks);
-      
-      // Count PDFs
-      const pdfCount = limited.filter(u => u.toLowerCase().endsWith('.pdf')).length;
-      
-      return { urls: limited, pdfCount };
-    } catch (err) {
-      console.error('crawlUrls error', err);
-      return { urls: [], pdfCount: 0 };
-    }
-  };
 
   // Handle file processing
-  const handleProcessFile = (urls) => {
+  const handleProcessFile = useCallback((urls) => {
     setUrlsFromFile(urls);
     setProcessedMarkdowns([]);
     setCurrentProcessingIndex(0);
     setStatus({ message: `Memuat ${urls.length} URL dari file. Klik "Mulai Memproses Semua" untuk memulai.`, type: 'info' });
-  };
+  }, []);
 
   const hasAnyProcessedContent = () => {
     if (urlsFromFile.length > 0 && processedMarkdowns.length > 0) {
