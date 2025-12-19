@@ -147,6 +147,7 @@ function App() {
   const [maxRetries, setMaxRetries] = useState(3); // State for max retries
   const [maxCrawlLinks, setMaxCrawlLinks] = useState(5000); // State for max crawl links (increased default)
   const [maxCrawlDepth, setMaxCrawlDepth] = useState(3); // State for max crawl depth (increased to 3)
+  const [concurrency, setConcurrency] = useState(5); // State for crawl concurrency
   const [discoveredPaths, setDiscoveredPaths] = useState([]); // Discovered paths from crawl
   const [selectedPaths, setSelectedPaths] = useState([]); // User-selected paths to process
   const [showPathSelection, setShowPathSelection] = useState(false); // Show path selection UI
@@ -1178,6 +1179,8 @@ function App() {
               onMaxCrawlLinksChange={handleMaxCrawlLinksChange}
               maxCrawlDepth={maxCrawlDepth}
               onMaxCrawlDepthChange={handleMaxCrawlDepthChange}
+              concurrency={concurrency}
+              onConcurrencyChange={handleConcurrencyChange}
               saveFormat={saveFormat}
               onSaveFormatChange={handleSaveFormatChange}
           />
