@@ -796,6 +796,13 @@ function App() {
     }
   }, []);
 
+  const handleConcurrencyChange = useCallback((newConcurrency) => {
+    const value = parseInt(newConcurrency, 10);
+    if (value >= 1 && value <= 10) {
+      setConcurrency(value);
+    }
+  }, []);
+
   const handleSaveFormatChange = useCallback((format) => {
     setSaveFormat(format);
   }, []);

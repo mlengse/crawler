@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 
 function PreviewPanel({ markdownContent, lastProcessedUrl }) {
   const [isRenderedMode, setIsRenderedMode] = useState(false);
@@ -9,7 +10,10 @@ function PreviewPanel({ markdownContent, lastProcessedUrl }) {
     if (markdownContent && isRenderedMode) {
       try {
         if (typeof markdownContent === 'string') {
-          setRenderedHtml(marked.parse(markdownContent));
+          // Parse markdown and then sanitize the resulting HTML
+          const rawHtml = marked.parse(markdownContent);
+          const sanitizedHtml = DOMPurify.sanitize(rawHtml);
+          setRenderedHtml(sanitizedHtml);
         } else {
           setRenderedHtml('<p style="color:red;">Error: Konten tidak valid untuk pratinjau.</p>');
         }
