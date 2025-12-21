@@ -3,18 +3,29 @@ import React, { useState } from 'react';
 function UrlInputPanel({ onProcessUrl, onCrawlAndProcess, onProcessFile, disabled }) {
   const [manualUrl, setManualUrl] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
+  const [loadingAction, setLoadingAction] = useState(null);
 
-  const handleCrawlAndProcess = (e) => {
+  const handleCrawlAndProcess = async (e) => {
     e.preventDefault();
     if (manualUrl.trim()) {
-      onCrawlAndProcess(manualUrl);
+      setLoadingAction('crawl');
+      try {
+        await onCrawlAndProcess(manualUrl);
+      } finally {
+        setLoadingAction(null);
+      }
     }
   };
 
-  const handleProcessOnly = (e) => {
+  const handleProcessOnly = async (e) => {
     e.preventDefault();
     if (manualUrl.trim()) {
-      onProcessUrl(manualUrl);
+      setLoadingAction('process');
+      try {
+        await onProcessUrl(manualUrl);
+      } finally {
+        setLoadingAction(null);
+      }
     }
   };
   const handleFileChange = (e) => {
@@ -47,11 +58,21 @@ function UrlInputPanel({ onProcessUrl, onCrawlAndProcess, onProcessFile, disable
           disabled={disabled}
         />
         <div className="button-group">
-          <button onClick={handleCrawlAndProcess} disabled={disabled || !manualUrl.trim()} className="crawl-button">
-            Crawl & Process
+          <button
+            onClick={handleCrawlAndProcess}
+            disabled={disabled || !manualUrl.trim() || loadingAction !== null}
+            className="crawl-button"
+            aria-busy={loadingAction === 'crawl'}
+          >
+            {loadingAction === 'crawl' ? 'Crawling...' : 'Crawl & Process'}
           </button>
-          <button onClick={handleProcessOnly} disabled={disabled || !manualUrl.trim()} className="process-button">
-            Process Only
+          <button
+            onClick={handleProcessOnly}
+            disabled={disabled || !manualUrl.trim() || loadingAction !== null}
+            className="process-button"
+            aria-busy={loadingAction === 'process'}
+          >
+            {loadingAction === 'process' ? 'Processing...' : 'Process Only'}
           </button>
         </div>
       </div>
