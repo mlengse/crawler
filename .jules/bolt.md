@@ -1,0 +1,3 @@
+## 2024-12-20 - Memoization of Heavy Logic Functions
+**Learning:** Functions defined inside a React component body are recreated on every render. If these functions are passed as props to `React.memo` components (like `UrlInputPanel` or `ControlsPanel`), it breaks memoization and causes unnecessary re-renders of the entire child tree, even if the child's own props haven't "really" changed.
+**Action:** Move purely functional logic (like URL normalization or format conversion) OUTSIDE the component. For functions that depend on state, wrap them in `useCallback` with correct dependencies. This stabilizes the function identity and allows `React.memo` to work effectively.

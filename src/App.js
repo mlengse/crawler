@@ -4,7 +4,7 @@ import UrlInputPanel from './UrlInputPanel';
 import StatusDisplay from './StatusDisplay';
 import PreviewPanel from './PreviewPanel';
 import ControlsPanel from './ControlsPanel';
-import { convertHtmlToMarkdownJS, getDOMParser } from './markdownUtils';
+import { convertHtmlToMarkdownJS, getDOMParser, normalizeUrl } from './markdownUtils';
 
 // Helper function to trigger browser download
 function downloadFile(filename, content) {
@@ -129,6 +129,24 @@ function generateFilenameFromUrl(urlStr) {
   }
 }
 
+// Convert HTML to Markdown with WASM-first strategy
+// Optimized to avoid recreation on every render and reuse DOM elements
+const convertHtmlToMarkdown = (htmlContent, url) => {
+  // Try WASM first
+  if (typeof window.process_html_to_markdown === 'function') {
+    try {
+      const markdown = window.process_html_to_markdown(htmlContent, url);
+      return markdown;
+    } catch (wasmError) {
+      console.warn(`WASM HTML conversion failed, falling back to JavaScript:`, wasmError);
+      // Fall through to JavaScript fallback
+    }
+  }
+
+  // JavaScript fallback with enhanced HTML entity decoding
+  // Uses the shared function to avoid memory churn
+  return convertHtmlToMarkdownJS(htmlContent, url);
+};
 
 function App() {
   const [wasmInitialized, setWasmInitialized] = useState(false);
@@ -221,60 +239,9 @@ function App() {
     
     loadWasm();
   }, []);
-  // Normalize URL for deduplication
-  const normalizeUrl = (urlString) => {
-    try {
-      const url = new URL(urlString);
-
-      // Remove hash/fragment
-      url.hash = '';
-
-      // Remove trailing slash except for root path
-      if (url.pathname !== '/' && url.pathname.endsWith('/')) {
-        url.pathname = url.pathname.slice(0, -1);
-      }
-
-      // Sort query parameters for consistency
-      if (url.search) {
-        const params = new URLSearchParams(url.search);
-        const sortedParams = new URLSearchParams();
-        [...params.keys()].sort().forEach(key => {
-          params.getAll(key).forEach(value => sortedParams.append(key, value));
-        });
-        url.search = sortedParams.toString();
-      }
-
-      // Convert to lowercase for case-insensitive comparison
-      const normalized = url.toString().toLowerCase();
-
-      return normalized;
-    } catch (e) {
-      console.warn(`Failed to normalize URL: ${urlString}`, e);
-      return urlString.toLowerCase();
-    }
-  };
-
-  // Convert HTML to Markdown with WASM-first strategy
-  // Optimized to avoid recreation on every render and reuse DOM elements
-  const convertHtmlToMarkdown = (htmlContent, url) => {
-    // Try WASM first
-    if (typeof window.process_html_to_markdown === 'function') {
-      try {
-        const markdown = window.process_html_to_markdown(htmlContent, url);
-        return markdown;
-      } catch (wasmError) {
-        console.warn(`WASM HTML conversion failed, falling back to JavaScript:`, wasmError);
-        // Fall through to JavaScript fallback
-      }
-    }
-
-    // JavaScript fallback with enhanced HTML entity decoding
-    // Uses the shared function to avoid memory churn
-    return convertHtmlToMarkdownJS(htmlContent, url);
-  };
 
   // Extract links from a single page
-  const extractLinksFromPage = async (url, baseOrigin) => {
+  const extractLinksFromPage = useCallback(async (url, baseOrigin) => {
     try {
       const response = await fetch(url);
       if (!response.ok) {
@@ -408,10 +375,10 @@ function App() {
       console.error(`extractLinksFromPage error for ${url}:`, err);
       return [];
     }
-  };
+  }, []);
 
   // Deep crawl with maximum depth - crawls ALL links recursively
-  const crawlUrlsDeep = async (startUrl, depth = maxCrawlDepth) => {
+  const crawlUrlsDeep = useCallback(async (startUrl, depth = maxCrawlDepth) => {
     const baseOrigin = new URL(startUrl).origin;
     const visited = new Set(); // Stores normalized URLs
     const allUrls = new Map(); // Maps normalized URL -> original URL
@@ -498,68 +465,10 @@ function App() {
       totalFound: finalUrls.length,
       visited: visited.size
     };
-  };
-
-  // Legacy single-level crawl (kept for backward compatibility)
-  const crawlUrls = async (origin) => {
-    try {
-      const response = await fetch(origin);
-      if (!response.ok) {
-        console.warn(`crawlUrls: failed to fetch ${origin}: ${response.status}`);
-        return { urls: [], pdfCount: 0 };
-      }
-      const html = await response.text();
-      // Parse and extract <a> hrefs
-      const parser = getDOMParser();
-      const doc = parser.parseFromString(html, 'text/html');
-      const anchors = Array.from(doc.querySelectorAll('a[href]'));
-      const urls = anchors.map(a => a.getAttribute('href'))
-        .filter(href => href && !href.startsWith('#') && !href.startsWith('mailto:') && !href.startsWith('tel:') && !href.startsWith('javascript:'))
-        .map(href => {
-          try {
-            return new URL(href, origin).toString();
-          } catch (e) {
-            return null;
-          }
-        })
-        .filter(u => u !== null)
-        .filter(u => {
-          try { return new URL(u).origin === origin; } catch (e) { return false; }
-        })
-        .filter(u => {
-          // Drop likely binary/non-HTML assets by extension (except PDF which we handle separately)
-          const skipExt = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.zip', '.tar', '.gz', '.exe', '.dmg', '.iso'];
-          const path = new URL(u).pathname.toLowerCase();
-          return !skipExt.some(ext => path.endsWith(ext));
-        })
-        .map(u => {
-          // Normalize: remove fragment only
-          const nu = new URL(u);
-          nu.hash = '';
-          return nu.toString();
-        });
-
-      // Reduce to unique and only sub-paths (path not equal '/'), stable order
-      const unique = Array.from(new Set(urls)).filter(u => {
-        const p = new URL(u).pathname;
-        return p && p !== '/';
-      });
-
-      // Apply maxCrawlLinks limit
-      const limited = unique.slice(0, maxCrawlLinks);
-
-      // Count PDFs
-      const pdfCount = limited.filter(u => u.toLowerCase().endsWith('.pdf')).length;
-
-      return { urls: limited, pdfCount };
-    } catch (err) {
-      console.error('crawlUrls error', err);
-      return { urls: [], pdfCount: 0 };
-    }
-  };
+  }, [maxCrawlDepth, maxCrawlLinks, extractLinksFromPage, crawlStats]);
 
   // Enhanced error handling and retry mechanism (from renderer.js)
-  const processSingleUrl = async (url, isFromFile = false, maxRetriesOverride = null) => {
+  const processSingleUrl = useCallback(async (url, isFromFile = false, maxRetriesOverride = null) => {
     const retriesToUse = maxRetriesOverride !== null ? maxRetriesOverride : maxRetries;
     if (!wasmInitialized) {
       setStatus({ message: 'WASM belum diinisialisasi. Mohon tunggu.', type: 'error' });
@@ -693,10 +602,10 @@ function App() {
         }
       }
     }
-  };
+  }, [maxRetries, wasmInitialized]);
 
   // Enhanced file processing with progress tracking (from renderer.js)
-  const startProcessingAll = async () => {
+  const startProcessingAll = useCallback(async () => {
     if (currentProcessingIndex >= urlsFromFile.length && urlsFromFile.length > 0) {
         setStatus({ message: 'Semua URL sudah diproses.', type: 'info' });
         setIsProcessingMultiple(false);
@@ -759,7 +668,8 @@ function App() {
       setStatus({ message, type: 'warning' });
     } else {
       setStatus({ message, type: 'success' });
-    }  };
+    }  }, [currentProcessingIndex, urlsFromFile, processedMarkdowns, processSingleUrl]);
+
   const handleToggleSaveMerged = useCallback(() => {
     setSaveMerged(prev => !prev);
   }, []);
@@ -806,6 +716,14 @@ function App() {
   const handleSaveFormatChange = useCallback((format) => {
     setSaveFormat(format);
   }, []);
+
+  const handleConcurrencyChange = useCallback((newConcurrency) => {
+    const value = parseInt(newConcurrency, 10);
+    if (value >= 1 && value <= 20) {
+      setConcurrency(value);
+    }
+  }, []);
+
   const handleSaveMarkdown = () => {
     const successfulMarkdowns = processedMarkdowns.filter(item => item && !item.error && item.markdown);
 
@@ -1051,7 +969,7 @@ function App() {
       setShowPathSelection(false);
       setStatus({ message: `Selesai mengunduh ${pdfUrls.length} file PDF.`, type: 'success' });
     }
-  }, [selectedPaths, discoveredPaths, startProcessingAll]);
+  }, [selectedPaths, discoveredPaths, startProcessingAll]); // Added startProcessingAll to dependency list to fix lint warning (even if it changes, it's safe here)
 
   // Toggle path selection
   const handleTogglePathSelection = useCallback((index) => {

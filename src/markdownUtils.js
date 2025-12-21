@@ -104,3 +104,36 @@ export const convertHtmlToMarkdownJS = (htmlContent, url) => {
     markdown += cleaned;
     return markdown;
 };
+
+// Normalize URL for deduplication
+export const normalizeUrl = (urlString) => {
+  try {
+    const url = new URL(urlString);
+
+    // Remove hash/fragment
+    url.hash = '';
+
+    // Remove trailing slash except for root path
+    if (url.pathname !== '/' && url.pathname.endsWith('/')) {
+      url.pathname = url.pathname.slice(0, -1);
+    }
+
+    // Sort query parameters for consistency
+    if (url.search) {
+      const params = new URLSearchParams(url.search);
+      const sortedParams = new URLSearchParams();
+      [...params.keys()].sort().forEach(key => {
+        params.getAll(key).forEach(value => sortedParams.append(key, value));
+      });
+      url.search = sortedParams.toString();
+    }
+
+    // Convert to lowercase for case-insensitive comparison
+    const normalized = url.toString().toLowerCase();
+
+    return normalized;
+  } catch (e) {
+    console.warn(`Failed to normalize URL: ${urlString}`, e);
+    return urlString.toLowerCase();
+  }
+};
