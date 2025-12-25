@@ -889,7 +889,7 @@ function App() {
       
       setStatus({ message: `Mencari semua halaman di ${urlObj.origin} (kedalaman maksimal: ${maxCrawlDepth})...`, type: 'info' });
       // Note: crawlUrlsDeep uses state (maxCrawlLinks)
-      const discovered = await crawlUrlsDeep(urlObj.origin, maxCrawlDepth);
+      const discovered = await crawlUrlsDeep(normalized, maxCrawlDepth);
 
       if (!discovered || !discovered.urls || discovered.urls.length === 0) {
         setStatus({ message: `Tidak menemukan halaman. Memproses root: ${normalized}`, type: 'info' });
