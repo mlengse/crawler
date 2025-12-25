@@ -3,7 +3,7 @@
   "buildCommand": "npm run build:vercel",
   "outputDirectory": "build",
   "public": true,
-  "installCommand": "export RUSTUP_INIT_SKIP_SUDO_CHECK=1 && npm install && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path",
+  "installCommand": "npm install && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path",
   "rewrites": [
     {
       "source": "/(.*)",
