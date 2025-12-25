@@ -717,13 +717,6 @@ function App() {
     setSaveFormat(format);
   }, []);
 
-  const handleConcurrencyChange = useCallback((newConcurrency) => {
-    const value = parseInt(newConcurrency, 10);
-    if (value >= 1 && value <= 20) {
-      setConcurrency(value);
-    }
-  }, []);
-
   const handleSaveMarkdown = () => {
     const successfulMarkdowns = processedMarkdowns.filter(item => item && !item.error && item.markdown);
 
